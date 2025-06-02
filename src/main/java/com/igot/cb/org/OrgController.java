@@ -22,4 +22,10 @@ public class OrgController {
         return new ResponseEntity<>(response,response.getResponseCode());
     }
 
+    @PostMapping("/hierarchy/framework")
+    public ResponseEntity<Object> createFramework(@RequestParam String masterFrameworkName, @RequestParam String orgId, @RequestHeader(value = Constants.X_AUTH_TOKEN) String userAuthToken) {
+        ApiResponse response = orgService.createOrgHierarchyFramework(masterFrameworkName,orgId,userAuthToken);
+        return new ResponseEntity<>(response,response.getResponseCode());
+    }
+
 }
