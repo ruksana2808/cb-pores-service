@@ -17,7 +17,7 @@ import org.springframework.data.cassandra.repository.config.EnableCassandraRepos
 import java.net.InetSocketAddress;
 import java.util.Objects;
 @Configuration
-@ConfigurationProperties("spring.cassandra")
+@ConfigurationProperties("spring.data.cassandra")
 @EnableCassandraRepositories(basePackages = { "org.sunbird" }, cassandraTemplateRef = "sunbirdTemplate")
 public class SunbirdConfig extends CassandraConfig {
     private Logger logger = LoggerFactory.getLogger(SunbirdConfig.class);
