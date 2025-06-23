@@ -158,7 +158,9 @@ public class EsUtilServiceImpl implements EsUtilService {
                 if (pageSize > 0) {
                     searchRequestBuilder.size(pageSize);
                 }
+
             }
+
             SearchRequest searchRequest = searchRequestBuilder.build();
             log.info("Final search query: {}", searchRequest.toString());
             SearchResponse<Object> paginatedSearchResponse =
@@ -215,6 +217,17 @@ public class EsUtilServiceImpl implements EsUtilService {
             return null;
         }
         BoolQuery.Builder boolQueryBuilder = buildFilterQuery(searchCriteria.getFilterCriteriaMap());
+        // Add startsWith logic if present
+        String startsWith = searchCriteria.getStartsWith();
+        String startsWithField = searchCriteria.getStartsWithField();
+        if (startsWith != null && !startsWith.trim().isEmpty() &&
+                startsWithField != null && !startsWithField.trim().isEmpty()) {
+            Query prefixQuery = Query.of(q -> q.prefix(p -> p
+                    .field(startsWithField + ".keyword")
+                    .value(startsWith)
+            ));
+            boolQueryBuilder.must(prefixQuery);
+        }
         SearchRequest.Builder searchSourceBuilder = new SearchRequest.Builder();
         searchSourceBuilder.query(boolQueryBuilder.build()._toQuery());
         addSortToSearchSourceBuilder(searchCriteria, searchSourceBuilder);
