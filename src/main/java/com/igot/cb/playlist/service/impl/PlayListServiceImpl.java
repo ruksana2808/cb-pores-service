@@ -515,7 +515,7 @@ public class PlayListServiceImpl implements PlayListSerive {
           enrichedContentJson.put(Constants.CHILDREN, objectMapper.valueToTree(enrichContentMaps));
           enrichedContentJson.put(Constants.ID, playListEntity.getOrgId());
           persistInRedis(enrichedContentJson, playListEntity,
-              playListEntity.getOrgId() + playListEntity.getRequestType());
+              id);
 
           playListStringFromRedis =
               redisCacheMngr.hget(id, redisInsightIndex, orgId).toString();
