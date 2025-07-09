@@ -568,13 +568,17 @@ public class PlayListServiceImpl implements PlayListSerive {
   }
 
   private String extractRequestType(String id) {
-    // Regex: digits, then request type, then optional digits, then optional UUID
-    String regex = "^\\d+([A-Za-z_]+)\\d*(?:-[0-9a-fA-F\\-]{36})?$";
-    Pattern pattern = Pattern.compile(regex);
+    // UUID regex (version-agnostic)
+    String uuidRegex = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
+    // Find where the UUID starts and get the prefix
+    Pattern pattern = Pattern.compile(uuidRegex);
     Matcher matcher = pattern.matcher(id);
+
     if (matcher.find()) {
-      return matcher.group(1);
+      return id.substring(0, matcher.start()).trim(); // Request type is before UUID
     }
+
+    // If no UUID is found, assume whole string is requestType
     return id.trim();
   }
 
