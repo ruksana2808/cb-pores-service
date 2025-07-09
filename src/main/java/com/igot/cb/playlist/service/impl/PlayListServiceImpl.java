@@ -42,6 +42,9 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.MapUtils;
 import org.slf4j.Logger;
@@ -497,8 +500,7 @@ public class PlayListServiceImpl implements PlayListSerive {
           || playListStringFromRedis.isEmpty()) {
         String requestType = "";
         if (id.startsWith(orgId)) {
-          // Extract the part after orgId
-          requestType = id.substring(orgId.length());
+          requestType = extractRequestType(id.substring(orgId.length()));
         }
         // Fetch from postgres and add fetched playlist into redis
         List<PlayListEntity> optionalJsonNodeEntity =
@@ -563,6 +565,17 @@ public class PlayListServiceImpl implements PlayListSerive {
       response.setResponseCode(HttpStatus.NOT_FOUND);
       return response;
     }
+  }
+
+  private String extractRequestType(String id) {
+    // Regex: digits, then request type, then optional digits, then optional UUID
+    String regex = "^\\d+([A-Za-z_]+)\\d*(?:-[0-9a-fA-F\\-]{36})?$";
+    Pattern pattern = Pattern.compile(regex);
+    Matcher matcher = pattern.matcher(id);
+    if (matcher.find()) {
+      return matcher.group(1);
+    }
+    return id.trim();
   }
 
   @Override
