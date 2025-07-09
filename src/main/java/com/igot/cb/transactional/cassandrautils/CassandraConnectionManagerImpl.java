@@ -75,18 +75,20 @@ public class CassandraConnectionManagerImpl implements CassandraConnectionManage
             // Load the properties required for connection
             PropertiesCache cache = PropertiesCache.getInstance();
             String cassandraHost = cache.getProperty(Constants.CASSANDRA_CONFIG_HOST);
+
             if (StringUtils.isBlank(cassandraHost)) {
                 throw new CustomException(
                         Constants.ERROR,
                         "Cassandra host is not configured",
                         HttpStatus.INTERNAL_SERVER_ERROR);
             }
+            int cassandraPort = Integer.parseInt(cache.getProperty(Constants.CASSANDRA_CONFIG_PORT));
             List<String> hosts = Arrays.asList(cassandraHost.split(","));
             List<InetSocketAddress> contactPoints = hosts.stream()
-                    .map(host -> new InetSocketAddress(host.trim(), 9042)) // Assuming default port 9042
+                    .map(host -> new InetSocketAddress(host.trim(), cassandraPort))
                     .collect(Collectors.toList());
             List<String> contactPointsString = hosts.stream()
-                    .map(host -> host.trim() + ":9042") // Ensure proper host:port format
+                    .map(host -> host.trim() + ":" + cassandraPort)
                     .collect(Collectors.toList());
             ConsistencyLevel consistencyLevel = getConsistencyLevel();
             String consistencyLevelName = consistencyLevel != null ? consistencyLevel.name() : ConsistencyLevel.LOCAL_ONE.name(); // or default fallback
