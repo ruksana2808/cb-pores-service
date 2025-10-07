@@ -195,6 +195,7 @@ public class AnnouncementServiceImpl implements AnnouncementService {
   }
 
   public String generateRedisJwtTokenKey(Object requestPayload) {
+      //
     if (requestPayload != null) {
       try {
         String reqJsonString = objectMapper.writeValueAsString(requestPayload);
