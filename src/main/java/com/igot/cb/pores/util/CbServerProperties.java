@@ -171,6 +171,9 @@ public class CbServerProperties {
     @Value("${org.hierarchy.required.roles}")
     private String orgHierarchyCreateRoles;
 
+    @Value("${jwt.search.key.name}")
+    private String jwtSearchKeyName;
+
     public List<String> getOrgHierarchyCreateRequiredRoles() {
       return Arrays.asList(orgHierarchyCreateRoles.split(","));
     }
