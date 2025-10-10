@@ -105,6 +105,9 @@ class OrgBookmarkServiceImplTest {
 
     @Test
     void testCreateOrgBookmark_duplicateBookmarkFailure() {
+        // ✅ Mock secret key to avoid "Secret cannot be null"
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+
         when(cbServerProperties.getBookmarkDuplicateNotAllowedCategory())
                 .thenReturn(List.of("testCategory"));
         when(cbServerProperties.getElasticBookmarkJsonPath()).thenReturn("dummyPath");
@@ -115,21 +118,25 @@ class OrgBookmarkServiceImplTest {
                 .thenReturn("user123");
 
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
         // Mock duplicate found
         CustomResponse customResponse = new CustomResponse();
         customResponse.getResult().put("totalCount", 1L);
+
         SearchCriteria searchCriteria = new SearchCriteria();
         Map<String, Object> filter = new HashMap<>();
         filter.put(Constants.CATEGORY, "category");
         filter.put(Constants.ORG_ID, "orgId");
         filter.put(Constants.IS_ACTIVE, Constants.ACTIVE_STATUS);
         searchCriteria.setFilterCriteriaMap((HashMap<String, Object>) filter);
+
         when(orgBookmarkService.search(searchCriteria)).thenReturn(customResponse);
 
-
+        // Act + Assert
         assertThrows(CustomException.class, () ->
                 orgBookmarkService.createOrgBookmark(validPayload.deepCopy(), "token"));
     }
+
 
     @Test
     void testCreateOrgBookmark_userIdBlank() {
@@ -155,38 +162,70 @@ class OrgBookmarkServiceImplTest {
 
     @Test
     void testSearch_resultFromRedis() {
+        // Arrange
         SearchCriteria criteria = new SearchCriteria();
+
+        //Mock secret key to avoid "Secret cannot be null"
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+
+        //Mock Redis setup
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(anyString())).thenReturn(new SearchResult());
 
+        // Act
         CustomResponse response = orgBookmarkService.search(criteria);
 
+        // Assert
+        assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getResponseCode());
     }
 
+
     @Test
     void testSearch_shortSearchString() {
+        // Arrange
         SearchCriteria criteria = new SearchCriteria();
         criteria.setSearchString("a");
+
+        //Mock secret key to avoid JWT "Secret cannot be null"
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+
+        //Mock Redis so search() can call it safely
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+        // Act
         CustomResponse response = orgBookmarkService.search(criteria);
 
+        // Assert
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals("FAILED", response.getParams().getStatus());
     }
 
+
     @Test
     void testSearch_elasticsearchThrowsException() throws Exception {
+        // Arrange
         SearchCriteria criteria = new SearchCriteria();
         criteria.setSearchString("valid");
 
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(esUtilService.searchDocuments(any(), any())).thenThrow(new RuntimeException("ES error"));
+        // Mock the secret key to avoid "Secret cannot be null"
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
 
+        // Mock Redis setup
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+        // Simulate exception from Elasticsearch
+        when(esUtilService.searchDocuments(any(), any()))
+                .thenThrow(new RuntimeException("ES error"));
+
+        // Act
         CustomResponse response = orgBookmarkService.search(criteria);
 
+        // Assert
+        assertNotNull(response);
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
     }
+
 
     @Test
     void testUpdateOrgBookmark_success() {

@@ -98,12 +98,17 @@ class CompetencySubThemeServiceImplTest {
      */
     @Test
     void testSearchCompSubThemeWithShortSearchString() {
+        // Arrange
         SearchCriteria searchCriteria = new SearchCriteria();
         searchCriteria.setSearchString("a");
-
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        // Fix: Mock and inject JWT secret so HMAC256 has a valid key
+        CbServerProperties cbServerProperties = mock(CbServerProperties.class);
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+        ReflectionTestUtils.setField(competencySubThemeService, "cbServerProperties", cbServerProperties);
+        // Act
         CustomResponse response = competencySubThemeService.searchCompSubTheme(searchCriteria);
-
+        // Assert
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
     }
 
@@ -228,23 +233,26 @@ class CompetencySubThemeServiceImplTest {
     @Test
     void test_generateRedisJwtTokenKey_1() {
         MockitoAnnotations.openMocks(this);
-
         // Arrange
         Object requestPayload = new Object();
         String mockJsonString = "{\"key\":\"value\"}";
-
+        // Mock ObjectMapper and cbServerProperties
+        CbServerProperties cbServerProperties = mock(CbServerProperties.class);
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+        ReflectionTestUtils.setField(competencySubThemeService, "cbServerProperties", cbServerProperties);
         try {
             when(objectMapper.writeValueAsString(any())).thenReturn(mockJsonString);
         } catch (Exception e) {
             e.printStackTrace();
         }
-
         // Act
         String result = competencySubThemeService.generateRedisJwtTokenKey(requestPayload);
-
         // Assert
         assertNotNull(result);
-        assertTrue(JWT.decode(result).getClaim(Constants.REQUEST_PAYLOAD).asString().equals(mockJsonString));
+        assertTrue(JWT.decode(result)
+                .getClaim(Constants.REQUEST_PAYLOAD)
+                .asString()
+                .equals(mockJsonString));
     }
 
     /**
@@ -509,15 +517,13 @@ class CompetencySubThemeServiceImplTest {
         // Arrange
         SearchCriteria searchCriteria = new SearchCriteria();
         SearchResult mockSearchResult = new SearchResult();
-        String mockRedisKey = "mockRedisKey";
-
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(competencySubThemeService.generateRedisJwtTokenKey(searchCriteria)).thenReturn(mockRedisKey);
-        lenient().when(valueOperations.get(mockRedisKey)).thenReturn(mockSearchResult);
-
+        // Mock cbServerProperties with dummy secret
+        CbServerProperties cbServerProperties = mock(CbServerProperties.class);
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+        ReflectionTestUtils.setField(competencySubThemeService, "cbServerProperties", cbServerProperties);
         // Act
         CustomResponse response = competencySubThemeService.searchCompSubTheme(searchCriteria);
-
         // Assert
         assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getResponseCode());
@@ -534,20 +540,26 @@ class CompetencySubThemeServiceImplTest {
         // Arrange
         SearchCriteria searchCriteria = new SearchCriteria();
         searchCriteria.setSearchString("valid search");
-
+        // Mock Redis
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(anyString())).thenReturn(null);
-
+        // Mock ES response
         SearchResult mockSearchResult = new SearchResult();
         when(esUtilService.searchDocuments(anyString(), any(SearchCriteria.class))).thenReturn(mockSearchResult);
-
+        // Inject mock CbServerProperties with dummy secret
+        CbServerProperties cbServerProperties = mock(CbServerProperties.class);
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey123");
+        ReflectionTestUtils.setField(competencySubThemeService, "cbServerProperties", cbServerProperties);
         // Act
         CustomResponse response = competencySubThemeService.searchCompSubTheme(searchCriteria);
-
         // Assert
+        assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertEquals(Constants.SUCCESS, response.getParams().getStatus());
         assertEquals(mockSearchResult, response.getResult().get(Constants.RESULT));
+        // Optional verifications
+        verify(esUtilService, times(1)).searchDocuments(anyString(), any(SearchCriteria.class));
+        verify(redisTemplate.opsForValue(), times(1)).get(anyString());
     }
 
     /**
@@ -556,16 +568,19 @@ class CompetencySubThemeServiceImplTest {
      */
     @Test
     void test_searchCompSubTheme_shortSearchString() {
+        // Mock redis dependencies
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-//        when(valueOperations.get(anyString())).thenReturn(null);
+        // Inject dummy CbServerProperties to avoid "Secret cannot be null"
+        CbServerProperties cbServerProperties = mock(CbServerProperties.class);
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey123");
+        ReflectionTestUtils.setField(competencySubThemeService, "cbServerProperties", cbServerProperties);
         // Arrange
         SearchCriteria searchCriteria = new SearchCriteria();
         searchCriteria.setSearchString("a");
-
         // Act
         CustomResponse response = competencySubThemeService.searchCompSubTheme(searchCriteria);
-
         // Assert
+        assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
     }
 

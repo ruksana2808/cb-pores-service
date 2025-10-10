@@ -118,6 +118,7 @@ public class DesignationServiceImpl implements DesignationService {
   private AccessTokenValidator accessTokenValidator;
 
 
+
   @Override
   public void loadDesignation(MultipartFile file, String token) {
     log.info("DesignationServiceImpl::loadDesignationFromExcel");
@@ -881,7 +882,7 @@ public class DesignationServiceImpl implements DesignationService {
         String reqJsonString = objectMapper.writeValueAsString(requestPayload);
         return JWT.create()
             .withClaim(Constants.REQUEST_PAYLOAD, reqJsonString)
-            .sign(Algorithm.HMAC256(Constants.JWT_SECRET_KEY));
+            .sign(Algorithm.HMAC256(cbServerProperties.getJwtSearchKeyName()));
       } catch (JsonProcessingException e) {
         logger.error("Error occurred while converting json object to json string", e);
       }

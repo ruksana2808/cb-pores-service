@@ -101,6 +101,9 @@ class CiosContentServiceImplTest {
     @Mock
     private ResponseEntity<JsonNode> responseEntity;
 
+    @Mock
+    private CbServerProperties serverProperties;
+
     private ObjectMapper realObjectMapper = new ObjectMapper();
 
 
@@ -586,6 +589,7 @@ class CiosContentServiceImplTest {
      * This test verifies that the method returns the cached search result from Redis
      * without performing a new search operation.
      */
+
     @Test
     void test_searchCotent_1() {
         // Arrange
@@ -594,6 +598,7 @@ class CiosContentServiceImplTest {
 
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(anyString())).thenReturn(expectedResult);
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey"); // add this line
 
         // Act
         SearchResult actualResult = ciosContentService.searchCotent(searchCriteria);
@@ -605,6 +610,11 @@ class CiosContentServiceImplTest {
         verify(valueOperations).get(anyString());
         verifyNoMoreInteractions(redisTemplate, valueOperations);
     }
+
+
+
+
+
 
     @Test
     void test_searchCotent_ShouldThrowException_WhenSearchCriteriaIsNull() {
@@ -638,6 +648,11 @@ class CiosContentServiceImplTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(anyString())).thenReturn(null);
 
+        // ✅ Mock the cbServerProperties to prevent JWT secret = null
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+        // ✅ Optional: also set TTL to a dummy positive value
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+
         SearchResult expectedSearchResult = new SearchResult();
         when(esUtilService.searchDocuments(eq(Constants.CIOS_INDEX_NAME), any(SearchCriteria.class)))
                 .thenReturn(expectedSearchResult);
@@ -656,6 +671,9 @@ class CiosContentServiceImplTest {
 
         verify(valueOperations).set(anyString(), eq(expectedSearchResult), anyLong(), any());
     }
+
+
+
 
     /**
      * Test case for searchCotent method when the result is not in Redis cache,
@@ -676,7 +694,11 @@ class CiosContentServiceImplTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(anyString())).thenReturn(null);
 
-        when(esUtilService.searchDocuments(eq(Constants.CIOS_INDEX_NAME), any(SearchCriteria.class))).thenReturn(expectedResult);
+        // ✅ Mock JWT secret key to prevent "Secret cannot be null"
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+
+        when(esUtilService.searchDocuments(eq(Constants.CIOS_INDEX_NAME), any(SearchCriteria.class)))
+                .thenReturn(expectedResult);
 
         // Act
         SearchResult result = ciosContentService.searchCotent(searchCriteria);
@@ -690,6 +712,7 @@ class CiosContentServiceImplTest {
         verify(esUtilService).searchDocuments(eq(Constants.CIOS_INDEX_NAME), any(SearchCriteria.class));
         verify(valueOperations).set(anyString(), eq(expectedResult), anyLong(), any());
     }
+
 
     /**
      * Test case for searchCotent method when Redis cache is empty, filterCriteriaMap is null,
@@ -705,7 +728,12 @@ class CiosContentServiceImplTest {
 
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(any())).thenReturn(null);
-        when(esUtilService.searchDocuments(eq(Constants.CIOS_INDEX_NAME), any())).thenReturn(expectedResult);
+
+        // ✅ Mock JWT secret key to prevent "Secret cannot be null"
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+
+        when(esUtilService.searchDocuments(eq(Constants.CIOS_INDEX_NAME), any()))
+                .thenReturn(expectedResult);
 
         // Act
         SearchResult result = ciosContentService.searchCotent(searchCriteria);
@@ -713,6 +741,7 @@ class CiosContentServiceImplTest {
         // Assert
         assertEquals(expectedResult, result);
     }
+
 
     /**
      * Test validatePayload method with invalid payload
@@ -1119,10 +1148,15 @@ class CiosContentServiceImplTest {
 
         CiosContentServiceImpl service = prepareServiceWithMocks(mockNode);
 
-        Method method = CiosContentServiceImpl.class.getDeclaredMethod("fetchAndUpdateContentCountsInPartnerDb", String.class);
+        Method method = CiosContentServiceImpl.class
+                .getDeclaredMethod("fetchAndUpdateContentCountsInPartnerDb", String.class);
         method.setAccessible(true);
-        method.invoke(service, "PARTNER001");
+
+        //Assert: Method should not throw any exception during execution
+        assertDoesNotThrow(() -> method.invoke(service, "PARTNER001"),
+                "Method should handle missing FACETS gracefully without throwing an exception");
     }
+
 
     private CiosContentServiceImpl prepareServiceWithMocks(JsonNode mockedNode) throws Exception {
         CiosContentServiceImpl service = new CiosContentServiceImpl();
@@ -1183,6 +1217,8 @@ class CiosContentServiceImplTest {
         Method method = CiosContentServiceImpl.class.getDeclaredMethod("fetchAndUpdateContentCountsInPartnerDb", String.class);
         method.setAccessible(true);
         method.invoke(service, "PARTNER001");
+        assertDoesNotThrow(() -> method.invoke(service, "PARTNER001"),
+                "Method should handle missing STATUS in FACETS gracefully without exception");
     }
 
     @Test
@@ -1191,6 +1227,8 @@ class CiosContentServiceImplTest {
         Method method = CiosContentServiceImpl.class.getDeclaredMethod("fetchAndUpdateContentCountsInPartnerDb", String.class);
         method.setAccessible(true);
         method.invoke(service, "PARTNER001");
+        assertDoesNotThrow(() -> method.invoke(service, "PARTNER001"),
+                "Method should handle null ObjectNode gracefully without exception");
     }
 
     @Test

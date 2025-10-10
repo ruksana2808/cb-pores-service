@@ -547,36 +547,48 @@ class CompetencySubThemeServiceImpl3Test {
 
     @Test
     void testSearchCompSubTheme_fetchFromRedis() {
+        // Arrange
         SearchCriteria criteria = new SearchCriteria();
         criteria.setSearchString("example");
-
         SearchResult redisResult = new SearchResult();
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(anyString())).thenReturn(redisResult);
-
+        // Fix: Mock JWT secret to avoid "Secret cannot be null" error
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+        ReflectionTestUtils.setField(service, "cbServerProperties", cbServerProperties);
+        // Act
         CustomResponse response = service.searchCompSubTheme(criteria);
-
+        // Assert
         assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertTrue(response.getResult().containsKey(Constants.RESULT));
         assertEquals(redisResult, response.getResult().get(Constants.RESULT));
+        // Verify Redis interactions
+        verify(redisTemplate.opsForValue(), times(1)).get(anyString());
     }
+
 
     @Test
     void testSearchCompSubTheme_esThrowsException_redisSetInvoked() throws Exception {
+        // Arrange
         SearchCriteria criteria = new SearchCriteria();
         criteria.setSearchString("errorTest");
-
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(anyString())).thenReturn(null);
         when(esUtilService.searchDocuments(anyString(), any()))
                 .thenThrow(new RuntimeException("ES failed"));
-
+        // Mock the JWT secret to prevent "Secret cannot be null"
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+        ReflectionTestUtils.setField(service, "cbServerProperties", cbServerProperties);
+        // Act
         CustomResponse response = service.searchCompSubTheme(criteria);
-
+        // Assert
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
         assertEquals(Constants.FAILED_CONST, response.getParams().getStatus());
+        // Verify that Redis was checked at least once
+        verify(redisTemplate.opsForValue(), times(1)).get(anyString());
     }
+
 
     @Test
     void testReadCompSubTheme_invalidIdFromDb_shouldLogErrorAndReturnNotFound() {

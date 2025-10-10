@@ -195,26 +195,21 @@ class PlayListServiceImpl2Test {
 
     @Test
     void test_createV2PlayList_whenExceptionThrown_logsError() {
-        // Arrange
         ObjectNode input = new ObjectMapper().createObjectNode();
         input.put(Constants.ORG_ID, "org123");
         input.put(Constants.RQST_CONTENT_TYPE, "course");
         input.put(Constants.TITLE, "Sample Playlist");
 
-        // Do not throw in validation
         doNothing().when(payloadValidation).validatePayload(anyString(), eq(input));
-
-        // Force failure at DB save
         when(playListRepository.save(any())).thenThrow(new RuntimeException("Simulated failure"));
 
-        // Act
         ApiResponse response = playListService.createV2PlayList(input);
 
-        // Assert
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
         assertEquals(Constants.FAILED, response.getParams().getStatus());
         assertEquals("Not found", response.getParams().getErrMsg());
     }
+
 
 }
 

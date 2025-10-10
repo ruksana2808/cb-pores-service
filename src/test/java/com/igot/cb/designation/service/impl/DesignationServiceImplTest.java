@@ -111,6 +111,8 @@ class DesignationServiceImplTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.initMocks(this);
+        ReflectionTestUtils.setField(designationService, "cbServerProperties", cbServerProperties);
+
     }
 
     /**
@@ -669,24 +671,26 @@ class DesignationServiceImplTest {
      * when given a non-null request payload.
      */
     @Test
-    void test_generateRedisJwtTokenKey_whenRequestPayloadNotNull() {
+    void test_generateRedisJwtTokenKey_whenRequestPayloadNotNull() throws Exception {
         // Arrange
         Object requestPayload = new Object();
         String mockJsonString = "{\"key\":\"value\"}";
-        try {
-            when(objectMapper.writeValueAsString(requestPayload)).thenReturn(mockJsonString);
-        } catch (Exception e) {
-            fail("Exception should not be thrown");
-        }
+
+        // ✅ Mock ObjectMapper serialization
+        when(objectMapper.writeValueAsString(requestPayload)).thenReturn(mockJsonString);
+
+        // ✅ Mock JWT secret (prevents IllegalArgumentException)
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
 
         // Act
         String result = designationService.generateRedisJwtTokenKey(requestPayload);
 
         // Assert
-        assertNotNull(result);
-        assertFalse(result.isEmpty());
-        assertTrue(result.split("\\.").length == 3); // Basic JWT structure check
+        assertNotNull(result, "Token should not be null");
+        assertFalse(result.isEmpty(), "Token should not be empty");
+        assertEquals(3, result.split("\\.").length, "Token should have 3 JWT parts");
     }
+
 
     /**
      * Test case for readDesignation method when the input id is empty.
@@ -885,6 +889,12 @@ class DesignationServiceImplTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(any())).thenReturn(cachedResult);
 
+        //Fix: mock JWT secret key so Algorithm.HMAC256(...) doesn’t fail
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+
+        // Ensure cbServerProperties mock is injected
+        ReflectionTestUtils.setField(designationService, "cbServerProperties", cbServerProperties);
+
         // Act
         CustomResponse response = designationService.searchDesignation(searchCriteria);
 
@@ -893,6 +903,7 @@ class DesignationServiceImplTest {
         assertEquals(Constants.SUCCESS, response.getParams().getStatus());
         assertEquals(cachedResult, response.getResult().get(Constants.RESULT));
     }
+
 
     /**
     * Testcase 2 for @Override public CustomResponse searchDesignation(SearchCriteria searchCriteria)
@@ -906,12 +917,19 @@ class DesignationServiceImplTest {
         SearchCriteria searchCriteria = mock(SearchCriteria.class);
         when(searchCriteria.getSearchString()).thenReturn("a");
 
+        //Fix: mock secret key to prevent HMAC256 from failing
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+
+        //Inject into service
+        ReflectionTestUtils.setField(designationService, "cbServerProperties", cbServerProperties);
+
         // Act
         CustomResponse response = designationService.searchDesignation(searchCriteria);
 
         // Assert
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
     }
+
 
     /**
      * Test case for searchDesignation method when Redis cache is empty and search string is valid.
@@ -928,16 +946,24 @@ class DesignationServiceImplTest {
         when(valueOperations.get(anyString())).thenReturn(null);
 
         SearchResult mockSearchResult = new SearchResult();
-        when(esUtilService.searchDocuments(anyString(), any(SearchCriteria.class))).thenReturn(mockSearchResult);
+        when(esUtilService.searchDocuments(anyString(), any(SearchCriteria.class)))
+                .thenReturn(mockSearchResult);
+
+        //Fix: mock the secret key for JWT to avoid "Secret cannot be null"
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+        ReflectionTestUtils.setField(designationService, "cbServerProperties", cbServerProperties);
 
         // Act
         CustomResponse response = designationService.searchDesignation(searchCriteria);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getResponseCode());
-        assertEquals(mockSearchResult, response.getResult().get("result"));
-        verify(esUtilService, times(1)).searchDocuments(anyString(), any(SearchCriteria.class));
+        assertEquals(mockSearchResult, response.getResult().get(Constants.RESULT));
+
+        verify(esUtilService, times(1))
+                .searchDocuments(anyString(), any(SearchCriteria.class));
     }
+
 
     /**
      * Tests that searchDesignation returns an error response when the search string is too short (less than 2 characters).
@@ -945,14 +971,23 @@ class DesignationServiceImplTest {
      */
     @Test
     void test_searchDesignation_shortSearchString() {
+        // Arrange
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+        // ✅ Fix: mock the secret key to avoid IllegalArgumentException
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+        ReflectionTestUtils.setField(designationService, "cbServerProperties", cbServerProperties);
+
         SearchCriteria searchCriteria = new SearchCriteria();
         searchCriteria.setSearchString("a");
 
+        // Act
         CustomResponse response = designationService.searchDesignation(searchCriteria);
 
+        // Assert
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
     }
+
 
     /**
      * Test case for updateDesignation method when the designation exists and is successfully updated.
@@ -1563,6 +1598,10 @@ class DesignationServiceImplTest {
         SearchCriteria searchCriteria = new SearchCriteria();
         searchCriteria.setSearchString("developer");
 
+        // ✅ Mock the secret key to avoid "Secret cannot be null"
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+        ReflectionTestUtils.setField(designationService, "cbServerProperties", cbServerProperties);
+
         // Simulate Redis has no cached result
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(anyString())).thenReturn(null);
@@ -1578,5 +1617,6 @@ class DesignationServiceImplTest {
         assertNotNull(response);
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getResponseCode());
     }
+
 
 }

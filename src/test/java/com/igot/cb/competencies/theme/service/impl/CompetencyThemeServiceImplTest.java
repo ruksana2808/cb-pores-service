@@ -40,6 +40,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -614,27 +615,37 @@ class CompetencyThemeServiceImplTest {
      * Tests the generateRedisJwtTokenKey method with a non-null requestPayload.
      * Verifies that a JWT token is generated and returned.
      */
+
     @Test
     void test_generateRedisJwtTokenKey_1() {
+        // Arrange
         CompetencyThemeServiceImpl service = new CompetencyThemeServiceImpl();
         ObjectMapper objectMapper = mock(ObjectMapper.class);
-        service.objectMapper = objectMapper;
+        CbServerProperties cbServerProperties = mock(CbServerProperties.class);
+
+        // Inject mocks using Reflection
+        ReflectionTestUtils.setField(service, "objectMapper", objectMapper);
+        ReflectionTestUtils.setField(service, "cbServerProperties", cbServerProperties);
 
         Object requestPayload = new Object();
         String reqJsonString = "{\"key\":\"value\"}";
 
         try {
             when(objectMapper.writeValueAsString(requestPayload)).thenReturn(reqJsonString);
+            when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey"); // critical fix
 
+            // Act
             String result = service.generateRedisJwtTokenKey(requestPayload);
 
+            // Assert
             assertNotNull(result);
-            // Additional assertions can be added to verify the JWT structure and claims
+            assertTrue(result.split("\\.").length == 3); // JWT structure validation
         } catch (Exception e) {
-            // Handle or fail the test if an exception occurs
             throw new RuntimeException("Test failed due to exception", e);
         }
     }
+
+
 
     /**
      * Test case for generateRedisJwtTokenKey method when null input is provided.
@@ -1225,17 +1236,20 @@ class CompetencyThemeServiceImplTest {
         // Arrange
         SearchCriteria searchCriteria = new SearchCriteria();
         SearchResult mockSearchResult = new SearchResult();
+        // Mock Redis
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(anyString())).thenReturn(mockSearchResult);
-
+        // Fix: Mock JWT secret key to avoid "Secret cannot be null"
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+        ReflectionTestUtils.setField(competencyThemeService, "cbServerProperties", cbServerProperties);
         // Act
         CustomResponse response = competencyThemeService.searchCompTheme(searchCriteria);
-
         // Assert
         assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertTrue(response.getResult().containsKey(Constants.RESULT));
         assertEquals(mockSearchResult, response.getResult().get(Constants.RESULT));
+        // Verify Redis interactions
         verify(redisTemplate.opsForValue(), times(1)).get(anyString());
         verifyNoMoreInteractions(redisTemplate.opsForValue());
     }
@@ -1245,14 +1259,19 @@ class CompetencyThemeServiceImplTest {
      * This test verifies that when the search string is less than 2 characters long,
      * the method returns an error response with BAD_REQUEST status.
      */
+
     @Test
     void test_searchCompTheme_2() {
+        // Arrange
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         SearchCriteria searchCriteria = new SearchCriteria();
         searchCriteria.setSearchString("a");
-
+        // Fix: Mock JWT secret to avoid "Secret cannot be null"
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+        ReflectionTestUtils.setField(competencyThemeService, "cbServerProperties", cbServerProperties);
+        // Act
         CustomResponse response = competencyThemeService.searchCompTheme(searchCriteria);
-
+        // Assert
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
     }
@@ -1264,28 +1283,26 @@ class CompetencyThemeServiceImplTest {
      */
     @Test
     void test_searchCompTheme_3() throws Exception {
-        MockitoAnnotations.openMocks(this);
-
         // Arrange
+        MockitoAnnotations.openMocks(this);
         SearchCriteria searchCriteria = new SearchCriteria();
         searchCriteria.setSearchString("validSearchString");
-
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(anyString())).thenReturn(null);
-
         SearchResult mockSearchResult = new SearchResult();
-        when(esUtilService.searchDocuments(anyString(), any(SearchCriteria.class))).thenReturn(mockSearchResult);
-
+        when(esUtilService.searchDocuments(anyString(), any(SearchCriteria.class)))
+                .thenReturn(mockSearchResult);
+        // Fix: mock cbServerProperties and inject dummy secret key
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+        ReflectionTestUtils.setField(competencyThemeService, "cbServerProperties", cbServerProperties);
         // Act
         CustomResponse response = competencyThemeService.searchCompTheme(searchCriteria);
-
         // Assert
         assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertEquals("success", response.getParams().getStatus());
         assertTrue(response.getResult().containsKey("result"));
         assertEquals(mockSearchResult, response.getResult().get("result"));
-
         verify(redisTemplate.opsForValue(), times(1)).get(anyString());
         verify(esUtilService, times(1)).searchDocuments(anyString(), any(SearchCriteria.class));
     }
@@ -1297,12 +1314,16 @@ class CompetencyThemeServiceImplTest {
     */
     @Test
     void test_searchCompTheme_shortSearchString() {
+        // Arrange
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         SearchCriteria searchCriteria = new SearchCriteria();
         searchCriteria.setSearchString("ab");
-
+        // Fix: mock JWT secret to avoid "Secret cannot be null"
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+        ReflectionTestUtils.setField(competencyThemeService, "cbServerProperties", cbServerProperties);
+        // Act
         CustomResponse response = competencyThemeService.searchCompTheme(searchCriteria);
-
+        // Assert
         assertEquals(HttpStatus.OK, response.getResponseCode());
     }
 

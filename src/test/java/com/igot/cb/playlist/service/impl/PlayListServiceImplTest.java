@@ -14,6 +14,7 @@ import com.igot.cb.pores.elasticsearch.dto.SearchCriteria;
 import com.igot.cb.pores.elasticsearch.dto.SearchResult;
 import com.igot.cb.pores.elasticsearch.service.EsUtilService;
 import com.igot.cb.pores.util.ApiResponse;
+import com.igot.cb.pores.util.CbServerProperties;
 import com.igot.cb.pores.util.Constants;
 import com.igot.cb.pores.util.PayloadValidation;
 import java.sql.Timestamp;
@@ -33,6 +34,8 @@ import org.slf4j.Logger;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.http.HttpStatus;
+import org.springframework.test.util.ReflectionTestUtils;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -79,9 +82,15 @@ class PlayListServiceImplTest {
     @Mock
     private ValueOperations<String, SearchResult> valueOperations;
 
+    @Mock
+    private CbServerProperties cbServerProperties;
+
     @BeforeEach
     void setUp() {
         MockitoAnnotations.initMocks(this);
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+        ReflectionTestUtils.setField(playListService, "cbServerProperties", cbServerProperties);
+
     }
 
     /**
@@ -343,20 +352,22 @@ class PlayListServiceImplTest {
      */
     @Test
     void test_generateRedisJwtTokenKey_1() {
-        MockitoAnnotations.initMocks(this);
-
+        // Arrange
         Object requestPayload = new Object();
         String jsonString = "{\"key\":\"value\"}";
 
         try {
             when(objectMapper.writeValueAsString(requestPayload)).thenReturn(jsonString);
         } catch (Exception e) {
-            // Handle exception
+            fail("Exception should not occur during mock setup");
         }
 
+        // Act
         String result = playListService.generateRedisJwtTokenKey(requestPayload);
 
-        assertNotNull("Generated JWT token should not be null", result);
+        // Assert
+        assertNotNull(result, "Generated JWT token should not be null");
+        assertTrue(result.split("\\.").length == 3, "Token should have a valid JWT structure");
     }
 
     /**

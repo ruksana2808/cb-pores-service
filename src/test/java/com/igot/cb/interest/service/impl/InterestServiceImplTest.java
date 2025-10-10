@@ -31,11 +31,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.http.HttpStatus;
+import org.springframework.test.util.ReflectionTestUtils;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.*;
@@ -736,22 +739,20 @@ class InterestServiceImplTest {
      */
     @Test
     void test_generateRedisJwtTokenKey_whenRequestPayloadNotNull() throws Exception {
-        MockitoAnnotations.openMocks(this);
-
-        // Arrange
         Object requestPayload = new Object();
         String serializedPayload = "serialized_payload";
-        when(objectMapper.writeValueAsString(requestPayload)).thenReturn(serializedPayload);
 
-        // Act
+        when(objectMapper.writeValueAsString(requestPayload)).thenReturn(serializedPayload);
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+
         String result = interestService.generateRedisJwtTokenKey(requestPayload);
 
-        // Assert
         assertNotNull(result);
-        JWT.require(Algorithm.HMAC256(Constants.JWT_SECRET_KEY))
-           .build()
-           .verify(result);
+        JWT.require(Algorithm.HMAC256("dummySecretKey"))
+                .build()
+                .verify(result);
     }
+
 
     /**
      * Test case for read method when cached data is available.
@@ -839,12 +840,16 @@ class InterestServiceImplTest {
 
         SearchResult mockSearchResult = new SearchResult();
 
+        InterestServiceImpl spyService = Mockito.spy(interestService);
+        doReturn("mockedToken").when(spyService).generateRedisJwtTokenKey(any());
+
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(anyString())).thenReturn(null);
-        when(esUtilService.searchDocuments(eq(Constants.INTEREST_INDEX_NAME), eq(searchCriteria))).thenReturn(mockSearchResult);
+        when(esUtilService.searchDocuments(eq(Constants.INTEREST_INDEX_NAME), eq(searchCriteria)))
+                .thenReturn(mockSearchResult);
 
         // Act
-        CustomResponse response = interestService.searchDemand(searchCriteria);
+        CustomResponse response = spyService.searchDemand(searchCriteria);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getResponseCode());
@@ -852,20 +857,26 @@ class InterestServiceImplTest {
         verify(esUtilService).searchDocuments(eq(Constants.INTEREST_INDEX_NAME), eq(searchCriteria));
     }
 
+
     /**
      * Test case for searchDemand method when search string is less than 3 characters
      * This test verifies that an error response is returned when the search string is too short
      */
     @Test
     void test_searchDemand_shortSearchString() {
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        // Arrange
         SearchCriteria searchCriteria = new SearchCriteria();
         searchCriteria.setSearchString("ab");
-
-        CustomResponse response = interestService.searchDemand(searchCriteria);
-
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        // ✅ Bypass JWT logic
+        InterestServiceImpl spyService = Mockito.spy(interestService);
+        doReturn("mockedToken").when(spyService).generateRedisJwtTokenKey(any());
+        // Act
+        CustomResponse response = spyService.searchDemand(searchCriteria);
+        // Assert
         assertEquals(HttpStatus.OK, response.getResponseCode());
     }
+
 
     /**
      * Test case for searchDemand method when search result is found in Redis cache.
@@ -876,16 +887,24 @@ class InterestServiceImplTest {
         // Arrange
         SearchCriteria searchCriteria = new SearchCriteria();
         SearchResult cachedResult = new SearchResult();
+
+        // ✅ Mock Redis
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(anyString())).thenReturn(cachedResult);
+
+        // ✅ Mock JWT secret (fixes "Secret cannot be null" issue)
+        when(cbServerProperties.getJwtSearchKeyName()).thenReturn("dummySecretKey");
+        ReflectionTestUtils.setField(interestService, "cbServerProperties", cbServerProperties);
 
         // Act
         CustomResponse response = interestService.searchDemand(searchCriteria);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getResponseCode());
-        assertEquals(cachedResult, response.getResult().get("result"));
+        assertEquals(cachedResult, response.getResult().get(Constants.RESULT));
         verify(redisTemplate.opsForValue(), times(1)).get(anyString());
     }
+
+
 
 }
