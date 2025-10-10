@@ -1,8 +1,6 @@
 package com.igot.cb;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -28,8 +26,6 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
-import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.client.RestTemplate;
 
 @ExtendWith(MockitoExtension.class)
 class CbPoresApplicationTest {
@@ -62,7 +58,7 @@ class CbPoresApplicationTest {
 
         // Assert factory is created correctly
         assertNotNull(factory);
-        assertTrue(factory instanceof HttpComponentsClientHttpRequestFactory);
+        assertInstanceOf(HttpComponentsClientHttpRequestFactory.class, factory);
 
         // Verify HttpClient configuration by examining the factory
         HttpComponentsClientHttpRequestFactory httpFactory = (HttpComponentsClientHttpRequestFactory) factory;
@@ -83,7 +79,7 @@ class CbPoresApplicationTest {
 
         // Assert factory is created correctly
         assertNotNull(factory);
-        assertTrue(factory instanceof HttpComponentsClientHttpRequestFactory);
+        assertInstanceOf(HttpComponentsClientHttpRequestFactory.class, factory);
     }
 
     @Test
@@ -118,9 +114,6 @@ class CbPoresApplicationTest {
             verify(builderMock).setDefaultRequestConfig(configCaptor.capture());
             verify(builderMock).setConnectionManager(managerCaptor.capture());
             verify(builderMock).build();
-
-            // This part won't actually work since RequestConfig doesn't expose its values easily
-            // but demonstrates capturing for verification
         }
     }
 
