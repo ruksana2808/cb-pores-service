@@ -51,10 +51,11 @@ class CacheServiceTest {
     @Test
     void testPutCache_exception() throws Exception {
         when(objectMapper.writeValueAsString(any())).thenThrow(new RuntimeException("fail"));
-
-        // Should log and swallow the exception
-        cacheService.putCache("key", new Object());
+        // Assertion: ensure the method handles the exception gracefully
+        assertDoesNotThrow(() -> cacheService.putCache("key", new Object()),
+                "putCache should handle serialization failure without throwing an exception");
     }
+
 
     @Test
     void testGetCache_success() {

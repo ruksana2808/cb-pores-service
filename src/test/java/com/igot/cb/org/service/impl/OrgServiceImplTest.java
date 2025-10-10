@@ -852,17 +852,13 @@ class OrgServiceImplTest {
         String orgId = "testOrgId";
         Map<String, Object> updateResponse = new HashMap<>();
         updateResponse.put(Constants.RESPONSE, "FAILURE");
-
         when(cassandraOperation.updateRecord(
                 anyString(), anyString(), any(Map.class))).thenReturn(updateResponse);
-
-        // Act
-        orgService.updateOrganizationFramework(frameworkId, orgId, "id", "Completed");
-
-        // Assert
-        // No assertion needed as we're testing a void method and the error is logged
-        // We could use a mocked logger to verify the error message if needed
+        // Act & Assert
+        assertDoesNotThrow(() -> orgService.updateOrganizationFramework(frameworkId, orgId, "id", "Completed"),
+                "Method should handle DB update failure gracefully without throwing an exception");
     }
+
 
     /**
      * Test case for updateOrganizationFramework method when the update operation fails.

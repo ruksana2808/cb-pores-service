@@ -79,15 +79,21 @@ class NotificationConsumerTest {
                         return CompletableFuture.completedFuture(null);
                     });
 
-            notificationConsumer.demandContentConsumer(record);
+            // Assertion: ensure the method executes without throwing exceptions
+            assertDoesNotThrow(() -> notificationConsumer.demandContentConsumer(record),
+                    "demandContentConsumer should execute without errors for valid payload");
         }
     }
+
 
     @Test
     void testDemandContentConsumer_invalidPayload_shouldLogError() {
         ConsumerRecord<String, String> record = new ConsumerRecord<>("test", 0, 0L, "key", "{invalidJson");
-        notificationConsumer.demandContentConsumer(record);
+        // Assertion: verify method handles invalid JSON gracefully
+        assertDoesNotThrow(() -> notificationConsumer.demandContentConsumer(record),
+                "demandContentConsumer should handle invalid JSON without throwing an exception");
     }
+
 
     @Test
     void testExtractAndFormatCompetencies() throws Exception {
@@ -307,27 +313,21 @@ class NotificationConsumerTest {
     void testSendNotification_success() throws Exception {
         // Spy to test private sendNotification method
         NotificationConsumer spyConsumer = Mockito.spy(notificationConsumer);
-
-        // Mock logger so no real logging happens
-        // Also mock ObjectMapper to prevent errors in logging
+        // Mock ObjectMapper to prevent errors in logging
         ObjectMapper mapper = mock(ObjectMapper.class);
         ReflectionTestUtils.setField(spyConsumer, "mapper", mapper);
-
         Map<String, Object> request = new HashMap<>();
         String urlPath = "/notifyAsync";
-
         when(cbServerProperties.getNotifyServiceHost()).thenReturn("http://notifyhost");
-
-        // Mock requestHandlerService call
-        when(requestHandlerService.fetchResultUsingPost(anyString(), anyMap(), any())).thenReturn(Collections.singletonMap("status", "ok"));
-
-        // Mock ObjectMapper writeValueAsString call
+        when(requestHandlerService.fetchResultUsingPost(anyString(), anyMap(), any()))
+                .thenReturn(Collections.singletonMap("status", "ok"));
         when(mapper.writeValueAsString(any())).thenReturn("{}");
-
-        ReflectionTestUtils.invokeMethod(spyConsumer, "sendNotification", request, urlPath);
-
-        // If no exceptions thrown, success
+        // Assertion: method should execute successfully without exceptions
+        assertDoesNotThrow(() ->
+                        ReflectionTestUtils.invokeMethod(spyConsumer, "sendNotification", request, urlPath),
+                "sendNotification should execute successfully for valid input");
     }
+
 
     @Test
     void testDemandContentConsumer_success() throws Exception {
@@ -352,12 +352,9 @@ class NotificationConsumerTest {
 
         ConsumerRecord<String, String> record = new ConsumerRecord<>("test-topic", 0, 0L, "key", json);
 
-        // Inject dependencies via reflection
         ReflectionTestUtils.setField(notificationConsumer, "requestHandlerService", requestHandlerService);
         ReflectionTestUtils.setField(notificationConsumer, "cassandraOperation", cassandraOperation);
-       // ReflectionTestUtils.setField(notificationConsumer, "cbServerProperties", cbServerProperties);
 
-        // ✅ Mock email template Cassandra fetch
         Map<String, Object> template1 = new HashMap<>();
         template1.put(Constants.TEMPLATE, "<html>Demand ID: $demandId, MDO: $mdoName</html>");
         List<Map<String, Object>> templateList1 = List.of(template1);
@@ -370,7 +367,6 @@ class NotificationConsumerTest {
                 isNull()))
                 .thenReturn(templateList1);
 
-        // Mock organisation details
         Map<String, Object> orgDetails = new HashMap<>();
         orgDetails.put(Constants.USER_ROOT_ORG_NAME, "TestMDO");
         List<Map<String, Object>> orgList = List.of(orgDetails);
@@ -379,8 +375,6 @@ class NotificationConsumerTest {
                 eq("sunbird"), eq("organisation"), eq(Map.of("id", "root-123")), isNull(), eq(1)))
                 .thenReturn(orgList);
 
-
-        // Mock user search response
         Map<String, Object> personalDetails = new HashMap<>();
         personalDetails.put("primaryEmail", "test@example.com");
 
@@ -404,7 +398,6 @@ class NotificationConsumerTest {
         lenient().when(requestHandlerService.fetchResultUsingPost(anyString(), any(), any()))
                 .thenReturn(searchResponse);
 
-        // Mock config properties
         when(cbServerProperties.getSbUrl()).thenReturn("http://localhost:9000");
         when(cbServerProperties.getUserSearchEndPoint()).thenReturn("/user/search");
         when(cbServerProperties.getSupportEmail()).thenReturn("support@test.org");
@@ -412,11 +405,11 @@ class NotificationConsumerTest {
         when(cbServerProperties.getNotifyServiceHost()).thenReturn("http://notify.local");
         when(cbServerProperties.getNotificationAsyncPath()).thenReturn("/v1/notify");
 
-
-
-        // When
-        notificationConsumer.demandContentConsumer(record);
+        // When & Then
+        assertDoesNotThrow(() -> notificationConsumer.demandContentConsumer(record),
+                "Method should process a valid demand content record without throwing any exceptions");
     }
+
 
 
 

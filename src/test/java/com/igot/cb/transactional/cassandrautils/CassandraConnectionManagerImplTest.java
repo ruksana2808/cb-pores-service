@@ -57,8 +57,14 @@ class CassandraConnectionManagerImplTest {
     @Test
     void testShutdownHook() {
         Thread thread = new CassandraConnectionManagerImpl.ResourceCleanUp();
-        thread.start();
+
+        // Assertion: ensure the cleanup thread runs without throwing exceptions
+        assertDoesNotThrow(() -> {
+            thread.start();
+            thread.join(); // wait for thread to finish
+        }, "ResourceCleanUp thread should run and complete without throwing exceptions");
     }
+
 
     private ConsistencyLevel invokeGetConsistencyLevel() {
         try {

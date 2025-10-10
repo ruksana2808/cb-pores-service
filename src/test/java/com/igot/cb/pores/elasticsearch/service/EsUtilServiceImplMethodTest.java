@@ -100,21 +100,31 @@ class EsUtilServiceImplMethodTest {
     void testAddRequestedFieldsToSearchSourceBuilder_emptyFields() throws Exception {
         SearchRequest.Builder builder = new SearchRequest.Builder();
         searchCriteria.setRequestedFields(new ArrayList<>());
-
-        Method method = EsUtilServiceImpl.class.getDeclaredMethod("addRequestedFieldsToSearchSourceBuilder", SearchCriteria.class, SearchRequest.Builder.class);
+        Method method = EsUtilServiceImpl.class.getDeclaredMethod(
+                "addRequestedFieldsToSearchSourceBuilder",
+                SearchCriteria.class, SearchRequest.Builder.class);
         method.setAccessible(true);
-        method.invoke(esUtilService, searchCriteria, builder);
+        // Assertion: ensure method executes safely even when requestedFields is empty
+        assertDoesNotThrow(() -> method.invoke(esUtilService, searchCriteria, builder),
+                "Method should handle empty requested fields without throwing an exception");
     }
+
 
     @Test
     void testAddFacetsToSearchSourceBuilder() throws Exception {
         SearchRequest.Builder builder = new SearchRequest.Builder();
         List<String> facets = List.of("communityId");
 
-        Method method = EsUtilServiceImpl.class.getDeclaredMethod("addFacetsToSearchSourceBuilder", List.class, SearchRequest.Builder.class);
+        Method method = EsUtilServiceImpl.class.getDeclaredMethod(
+                "addFacetsToSearchSourceBuilder",
+                List.class, SearchRequest.Builder.class);
         method.setAccessible(true);
-        method.invoke(esUtilService, facets, builder);
+
+        // Assertion: method should execute successfully without throwing an exception
+        assertDoesNotThrow(() -> method.invoke(esUtilService, facets, builder),
+                "Method should handle valid facet list without throwing an exception");
     }
+
 
     @Test
     void testIsIndexPresent_IndexExists() throws Exception {

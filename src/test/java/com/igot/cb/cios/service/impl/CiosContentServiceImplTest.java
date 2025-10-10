@@ -1197,10 +1197,15 @@ class CiosContentServiceImplTest {
 
         CiosContentServiceImpl service = prepareServiceWithMocks(mockNode);
 
-        Method method = CiosContentServiceImpl.class.getDeclaredMethod("fetchAndUpdateContentCountsInPartnerDb", String.class);
+        Method method = CiosContentServiceImpl.class
+                .getDeclaredMethod("fetchAndUpdateContentCountsInPartnerDb", String.class);
         method.setAccessible(true);
-        method.invoke(service, "PARTNER001");
+
+        // Assertion: ensure the call completes without any exception
+        assertDoesNotThrow(() -> method.invoke(service, "PARTNER001"),
+                "Method should handle missing totalCount gracefully");
     }
+
 
     @Test
     void test_fetchAndUpdateContentCountsInPartnerDb_whenStatusMissing_logsWarning() throws Exception {

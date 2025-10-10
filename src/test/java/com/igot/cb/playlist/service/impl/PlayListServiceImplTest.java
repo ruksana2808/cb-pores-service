@@ -247,24 +247,26 @@ class PlayListServiceImplTest {
         playListEntity.setId(id);
         playListEntity.setOrgId("testOrgId");
         playListEntity.setIsActive(true);
-
         ObjectMapper objectMapper = new ObjectMapper();
         ObjectNode dataNode = objectMapper.createObjectNode();
         dataNode.put(Constants.PLAYLIST_KEY_REDIS, "testRedisKey");
         playListEntity.setData(dataNode);
-
         when(playListRepository.findByIdAndIsActive(id, true)).thenReturn(playListEntity);
         when(playListRepository.save(any(PlayListEntity.class))).thenReturn(playListEntity);
         when(redisCacheMngr.hdel(anyString(), anyString(), anyInt())).thenReturn(1L);
-
         // Act
         ApiResponse response = playListService.delete(id);
-
         // Assert
-        assert response.getResponseCode() == HttpStatus.OK;
-        assert response.getResult().get(Constants.STATUS).equals(Constants.DELETED_SUCCESSFULLY);
-        assert response.getResult().get(Constants.ID).equals(id);
+        assertEquals(HttpStatus.OK, response.getResponseCode(), "Expected OK status");
+        assertEquals(Constants.DELETED_SUCCESSFULLY,
+                response.getResult().get(Constants.STATUS),
+                "Expected playlist deletion success message");
+        assertEquals(id, response.getResult().get(Constants.ID), "Expected matching playlist ID");
+
+        // Additional assertion: verify repository was called
+        verify(playListRepository, times(1)).findByIdAndIsActive(id, true);
     }
+
 
     /**
      * Testcase 2 for @Override public ApiResponse delete(String id)

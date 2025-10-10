@@ -242,15 +242,19 @@ class DemandServiceImplMethodTest {
 
 
     @Test
-    void testResourceAvailability() throws Exception {
-        ClassPathResource resource = new ClassPathResource("payloadValidation/statusTransitions.json");
-        System.out.println("Resource exists? " + resource.exists());
-        if (resource.exists()) {
-            System.out.println("Resource absolute path: " + resource.getFile().getAbsolutePath());
-        } else {
-            System.out.println("Resource NOT found on classpath!");
-        }
+    void testResourceAvailability() {
+        assertDoesNotThrow(() -> {
+            ClassPathResource resource = new ClassPathResource("payloadValidation/statusTransitions.json");
+            System.out.println("Resource exists? " + resource.exists());
+            if (resource.exists()) {
+                System.out.println("Resource absolute path: " + resource.getFile().getAbsolutePath());
+            } else {
+                System.out.println("Resource NOT found on classpath!");
+            }
+        }, "Resource lookup should not throw any exception");
     }
+
+
 
     @Test
     void testUpdateDemandStatusSuccess() {
