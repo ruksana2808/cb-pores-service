@@ -1,6 +1,7 @@
 package com.igot.cb.authentication.util;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.igot.cb.pores.util.ApiResponse;
 import com.igot.cb.pores.util.Constants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -148,4 +149,18 @@ class AccessTokenValidatorTest {
 
         assertNull(actualUserId);
     }
+
+    @Test
+    void fetchUserIdFromAccessToken_withResponse_validToken_setsResponseSuccessfully() throws Exception {
+        String accessToken = "validToken";
+        ApiResponse response = new ApiResponse();
+        String expectedUserId = "user123";
+        doReturn(expectedUserId).when(spyAccessTokenValidator).verifyUserToken(accessToken);
+        String actualUserId = spyAccessTokenValidator.fetchUserIdFromAccessToken(accessToken, response);
+        assertEquals(expectedUserId, actualUserId);
+        // The response should remain default because token is valid
+        assertNull(response.getParams().getStatus());
+        assertNull(response.getParams().getErrMsg());
+    }
+
 }

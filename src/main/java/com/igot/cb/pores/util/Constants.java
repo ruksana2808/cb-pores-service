@@ -378,6 +378,9 @@ public class Constants {
     public static final String FRAMEWORK_ID_KEY  = "frameworkId";
     public static final String FRAMEWORK_STATUS_KEY = "frameworkStatus";
     public static final String CASSANDRA_CONFIG_PORT = "cassandra.config.port";
+    public static final String API_DESIGNATION_UPLOAD = "api.designation.upload";
+    public static final String ACCESS_TOKEN_IS_EXPIRED = "Access token is expired";
+    public static final String ACCESS_TOKEN_VALIDATION_FAILED = "Access token validation is failed";
 
     private Constants() {
     }

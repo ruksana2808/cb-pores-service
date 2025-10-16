@@ -2,6 +2,7 @@ package com.igot.cb.designation.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.igot.cb.designation.service.DesignationService;
+import com.igot.cb.playlist.util.ProjectUtil;
 import com.igot.cb.pores.util.ApiResponse;
 
 import com.igot.cb.pores.dto.CustomResponse;
@@ -34,16 +35,19 @@ public class DesignationController {
   @Autowired
   private DesignationService designationService;
 
-  @PostMapping(value = "/upload", consumes = "multipart/form-data")
-  public ResponseEntity<String> loadDesignation(@RequestParam("file") MultipartFile file, @RequestHeader(Constants.X_AUTH_TOKEN) String token) {
-    try {
-      designationService.loadDesignation(file, token);
-      return ResponseEntity.ok("Loading of designations from excel is successful.");
-    } catch (Exception e) {
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("Error during loading of designation from excel: " + e.getMessage());
+    @PostMapping(value = "/upload", consumes = "multipart/form-data")
+    public ResponseEntity<ApiResponse> loadDesignation(@RequestParam("file") MultipartFile file, @RequestHeader(Constants.X_AUTH_TOKEN) String token) {
+        try {
+            ApiResponse response = designationService.loadDesignation(file, token);
+            return ResponseEntity.status(response.getResponseCode()).body(response);
+        } catch (Exception ex) {
+            ApiResponse errorResponse = ProjectUtil.createDefaultResponse(Constants.API_DESIGNATION_UPLOAD);
+            errorResponse.getParams().setStatus(Constants.FAILED);
+            errorResponse.getParams().setErrMsg("Error during loading of designation from excel: " + ex.getMessage());
+            errorResponse.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
     }
-  }
 
 
   @PostMapping("/term/create")

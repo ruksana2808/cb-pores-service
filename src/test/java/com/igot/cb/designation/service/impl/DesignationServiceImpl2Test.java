@@ -119,13 +119,14 @@ class DesignationServiceImpl2Test {
 
     @Test
     void testLoadDesignation_Success() throws Exception {
-        // 1. Mock required fields
+        // 1. Mock repository and token validator
         when(designationRepository.count()).thenReturn(0L);
-        when(accessTokenValidator.verifyUserToken(TOKEN)).thenReturn("user-1");
+        when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any(ApiResponse.class)))
+                .thenReturn("user-1");
         when(esUtilService.isIndexPresent(Constants.DESIGNATION_INDEX_NAME)).thenReturn(true);
 
-        // 2. Create dummy SearchResult
-        JsonNode mockEsData = new ObjectMapper().createArrayNode(); // No duplicates
+        // 2. Create dummy SearchResult (no duplicates)
+        JsonNode mockEsData = new ObjectMapper().createArrayNode();
         SearchResult searchResult = new SearchResult();
         searchResult.setData(mockEsData);
         when(esUtilService.searchDocuments(eq(Constants.DESIGNATION_INDEX_NAME), any())).thenReturn(searchResult);
@@ -151,15 +152,19 @@ class DesignationServiceImpl2Test {
         ObjectMapper realMapper = new ObjectMapper();
         JsonNode excelJson = realMapper.valueToTree(List.of(Map.of("Designation", "Developer")));
         ObjectNode emptyObjNode = realMapper.createObjectNode();
-
         when(objectMapper.valueToTree(any())).thenReturn(excelJson);
         when(objectMapper.createObjectNode()).thenReturn(emptyObjNode);
 
-        // 5. Finally invoke loadDesignation
-        designationService.loadDesignation(mockExcelFile, TOKEN);
+        // 5. Invoke loadDesignation
+        ApiResponse response = designationService.loadDesignation(mockExcelFile, TOKEN);
 
-        // If no exception, test passed
+        // 6. Assert the response
+        assertNotNull(response);
+        assertEquals(Constants.API_DESIGNATION_UPLOAD, response.getId());
+        assertEquals(Constants.SUCCESS, response.getParams().getStatus()); // Assuming default status is SUCCESS
+        assertNull(response.getParams().getErrMsg());
     }
+
 
     @Test
     void testCreateTerm_PayloadValidationFails() throws Exception {

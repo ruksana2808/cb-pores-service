@@ -92,7 +92,7 @@ public class OrgServiceImpl implements OrgService {
                 .equalsIgnoreCase(Constants.FAILED)) {
                 String fwName = (String) orgDetails.get(0).get(Constants.FRAMEWORKID);
                 if (StringUtils.isBlank(fwName)) {
-                    String name = processFrameworkCreate(frameworkName,orgId,true);
+                    String name = processFrameworkCreate(frameworkName,orgId);
                     log.info("copy framework id : ",name);
                     if (StringUtils.isNotEmpty(name)) {
                         log.info("copy framework id : ",name);
@@ -203,7 +203,7 @@ public class OrgServiceImpl implements OrgService {
         return false;
     }
 
-    public String processFrameworkCreate(String masterFramework, String orgId, boolean includeOrgId) {
+    public String processFrameworkCreate(String masterFramework, String orgId) {
         String fwName = "";
         try {
             log.info("processFrameworkCreate started");
@@ -428,7 +428,7 @@ public class OrgServiceImpl implements OrgService {
                     .equalsIgnoreCase(Constants.FAILED)) {
                 String fwName = (String) orgDetail.get(Constants.ORG_HIERARCHY_FRAMEWORK_ID);
                 if (StringUtils.isBlank(fwName)) {
-                    String name = processFrameworkCreate(masterFramework,orgId, false);
+                    String name = processFrameworkCreate(masterFramework,orgId);
                     log.info("copy framework id : ",name);
                     if (StringUtils.isNotEmpty(name)) {
                         log.info("copy framework id : ",name);

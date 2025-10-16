@@ -3,9 +3,11 @@ package com.igot.cb.designation.controller;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.designation.service.DesignationService;
+import com.igot.cb.playlist.util.ProjectUtil;
 import com.igot.cb.pores.dto.CustomResponse;
 import com.igot.cb.pores.elasticsearch.dto.SearchCriteria;
 import com.igot.cb.pores.util.ApiResponse;
+import com.igot.cb.pores.util.Constants;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -19,7 +21,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.multipart.MultipartFile;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
@@ -240,22 +243,34 @@ public class DesignationControllerTest {
      * and the expected success message when the file is processed successfully.
      */
     @Test
-    public void test_loadDesignation_SuccessfulUpload() {
+    void testLoadDesignation_SuccessfulUpload() throws Exception {
         // Arrange
-
-        MultipartFile file = new MockMultipartFile("file", "test.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "test data".getBytes());
+        MultipartFile file = new MockMultipartFile(
+                "file",
+                "test.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "test data".getBytes()
+        );
         String token = "testToken";
 
-        doNothing().when(designationService).loadDesignation(file, token);
+        // Mock the service response
+        ApiResponse mockResponse = ProjectUtil.createDefaultResponse(Constants.API_DESIGNATION_UPLOAD);
+        mockResponse.getParams().setStatus(Constants.SUCCESS);
+        mockResponse.setResponseCode(HttpStatus.OK);
+
+        when(designationService.loadDesignation(file, token)).thenReturn(mockResponse);
 
         // Act
-        ResponseEntity<String> response = designationController.loadDesignation(file, token);
+        ResponseEntity<ApiResponse> responseEntity = designationController.loadDesignation(file, token);
 
         // Assert
-        assertEquals("Loading of designations from excel is successful.", response.getBody());
-        assertEquals(200, response.getStatusCodeValue());
+        assertNotNull(responseEntity);
+        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
+        assertNotNull(responseEntity.getBody());
+        assertEquals(Constants.SUCCESS, responseEntity.getBody().getParams().getStatus());
         verify(designationService, times(1)).loadDesignation(file, token);
     }
+
 
     /**
      * Test the loadDesignation method when an exception occurs during processing.
@@ -263,19 +278,40 @@ public class DesignationControllerTest {
      * when the designationService throws an exception.
      */
     @Test
-    public void test_loadDesignation_exception_handling() {
+    void testLoadDesignation_ExceptionHandling() throws Exception {
         // Arrange
-        MultipartFile file = new MockMultipartFile("file", "test.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "test data".getBytes());
+        MultipartFile file = new MockMultipartFile(
+                "file",
+                "test.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "test data".getBytes()
+        );
         String token = "testToken";
 
-        doThrow(new RuntimeException("Test exception")).when(designationService).loadDesignation(Mockito.any(MultipartFile.class), Mockito.anyString());
+        // Mock the service to throw RuntimeException
+        when(designationService.loadDesignation(any(MultipartFile.class), anyString()))
+                .thenThrow(new RuntimeException("Test exception"));
 
         // Act
-        ResponseEntity<String> response = designationController.loadDesignation(file, token);
+        ApiResponse response;
+        HttpStatus status;
+        try {
+            ResponseEntity<ApiResponse> responseEntity = designationController.loadDesignation(file, token);
+            response = responseEntity.getBody();
+            status = (HttpStatus) responseEntity.getStatusCode();
+        } catch (Exception ex) {
+            // In case your controller rethrows exception, fail the test
+            fail("Controller should handle the exception internally: " + ex.getMessage());
+            return;
+        }
 
         // Assert
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
-        assertEquals("Error during loading of designation from excel: Test exception", response.getBody());
+        assertNotNull(response);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, status);
+        assertEquals(Constants.FAILED, response.getParams().getStatus());
+        assertTrue(response.getParams().getErrMsg().contains("Test exception"));
+        verify(designationService, times(1)).loadDesignation(file, token);
     }
+
 
 }

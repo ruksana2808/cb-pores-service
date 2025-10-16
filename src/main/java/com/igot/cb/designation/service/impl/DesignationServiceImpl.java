@@ -120,76 +120,80 @@ public class DesignationServiceImpl implements DesignationService {
 
 
   @Override
-  public void loadDesignation(MultipartFile file, String token) {
-    log.info("DesignationServiceImpl::loadDesignationFromExcel");
-    List<Map<String, String>> processedData = processExcelFile(file);
-    log.info("No.of processedData from excel: " + processedData.size());
-    JsonNode designationJson = objectMapper.valueToTree(processedData);
-    AtomicLong startingId = new AtomicLong(designationRepository.count());
-    String userId = accessTokenValidator.verifyUserToken(token);
-    SearchCriteria searchCriteria = new SearchCriteria();
-    searchCriteria.setPageNumber(0);
-    searchCriteria.setPageSize(5000);
-    searchCriteria.setRequestedFields(Collections.singletonList(Constants.DESIGNATION));
-    JsonNode dataJson = objectMapper.createObjectNode();
-    try {
-      if(esUtilService.isIndexPresent(Constants.DESIGNATION_INDEX_NAME)){
-        SearchResult dataFetched = esUtilService.searchDocuments(Constants.DESIGNATION_INDEX_NAME, searchCriteria);
-        if (!dataFetched.getData().isEmpty() && !dataFetched.getData().isNull()){
-          dataJson = dataFetched.getData();
-        }
+  public ApiResponse loadDesignation(MultipartFile file, String token) {
+      log.info("DesignationServiceImpl::loadDesignationFromExcel");
+      ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_DESIGNATION_UPLOAD);
+      List<Map<String, String>> processedData = processExcelFile(file);
+      log.info("No.of processedData from excel: " + processedData.size());
+      JsonNode designationJson = objectMapper.valueToTree(processedData);
+      AtomicLong startingId = new AtomicLong(designationRepository.count());
+      String userId = accessTokenValidator.fetchUserIdFromAccessToken(token, response);
+      if (StringUtils.isEmpty(userId)) {
+          return response;
       }
-    } catch (Exception e) {
-      log.error("Error occurred while fetching data from Es for duplicate check creating Designation", e);
-      throw new CustomException("error while fetching data from Es for validation", e.getMessage(),
-          HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-    if (!StringUtils.isBlank(userId)){
+      SearchCriteria searchCriteria = new SearchCriteria();
+      searchCriteria.setPageNumber(0);
+      searchCriteria.setPageSize(5000);
+      searchCriteria.setRequestedFields(Collections.singletonList(Constants.DESIGNATION));
+      JsonNode dataJson = objectMapper.createObjectNode();
+      try {
+          if (esUtilService.isIndexPresent(Constants.DESIGNATION_INDEX_NAME)) {
+              SearchResult dataFetched = esUtilService.searchDocuments(Constants.DESIGNATION_INDEX_NAME, searchCriteria);
+              if (!dataFetched.getData().isEmpty() && !dataFetched.getData().isNull()) {
+                  dataJson = dataFetched.getData();
+              }
+          }
+      } catch (Exception e) {
+          log.error("Error occurred while fetching data from Es for duplicate check creating Designation", e);
+          throw new CustomException("error while fetching data from Es for validation", e.getMessage(),
+                  HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+
       Map<String, Boolean> titles = new HashMap<>();
       List<DesignationEntity> designationEntityList = new ArrayList<>();
       List<JsonNode> designationDataNodeList = new ArrayList<>();
-      if (!dataJson.isEmpty() && !dataJson.isNull()){
-        dataJson.forEach(node -> {
-          if (node.has(Constants.DESIGNATION)) {
-            titles.put(node.get(Constants.DESIGNATION).asText().toLowerCase(), true);
-          }
-        });
+      if (!dataJson.isEmpty() && !dataJson.isNull()) {
+          dataJson.forEach(node -> {
+              if (node.has(Constants.DESIGNATION)) {
+                  titles.put(node.get(Constants.DESIGNATION).asText().toLowerCase(), true);
+              }
+          });
       }
       designationJson.forEach(
-          eachDesignation -> {
-            if (!eachDesignation.isNull() && eachDesignation.has("Designation") && !eachDesignation.get("Designation").isNull()) {
-              if (eachDesignation.has("Designation") && !eachDesignation.get(
-                  "Designation").isNull()) {
-                ((ObjectNode) eachDesignation).put(Constants.DESIGNATION,
-                    eachDesignation.get("Designation"));
-              }
-              if (eachDesignation.has(Constants.UPDATED_DESIGNATION) && !eachDesignation.get(
-                  Constants.UPDATED_DESIGNATION).isNull()) {
-                ((ObjectNode) eachDesignation).put(Constants.DESIGNATION,
-                    eachDesignation.get(Constants.UPDATED_DESIGNATION));
-              }
-              if (!titles.containsKey(eachDesignation.get(Constants.DESIGNATION).asText().toLowerCase())) {
-                String formattedId = String.format("DESG-%06d", startingId.incrementAndGet());
-                JsonNode dataNode = validateAndSetData(eachDesignation, userId, formattedId);
-                DesignationEntity designationEntity = createDesignationEntity(dataNode,formattedId);
-                designationEntityList.add(designationEntity);
-                designationDataNodeList.add(dataNode);
-                titles.put(dataNode.get(Constants.DESIGNATION).asText().toLowerCase(), true);
-              }
+              eachDesignation -> {
+                  if (!eachDesignation.isNull() && eachDesignation.has("Designation") && !eachDesignation.get("Designation").isNull()) {
+                      if (eachDesignation.has("Designation") && !eachDesignation.get(
+                              "Designation").isNull()) {
+                          ((ObjectNode) eachDesignation).put(Constants.DESIGNATION,
+                                  eachDesignation.get("Designation"));
+                      }
+                      if (eachDesignation.has(Constants.UPDATED_DESIGNATION) && !eachDesignation.get(
+                              Constants.UPDATED_DESIGNATION).isNull()) {
+                          ((ObjectNode) eachDesignation).put(Constants.DESIGNATION,
+                                  eachDesignation.get(Constants.UPDATED_DESIGNATION));
+                      }
+                      if (!titles.containsKey(eachDesignation.get(Constants.DESIGNATION).asText().toLowerCase())) {
+                          String formattedId = String.format("DESG-%06d", startingId.incrementAndGet());
+                          JsonNode dataNode = validateAndSetData(eachDesignation, userId, formattedId);
+                          DesignationEntity designationEntity = createDesignationEntity(dataNode, formattedId);
+                          designationEntityList.add(designationEntity);
+                          designationDataNodeList.add(dataNode);
+                          titles.put(dataNode.get(Constants.DESIGNATION).asText().toLowerCase(), true);
+                      }
 
-            }
+                  }
 
-          });
+              });
       try {
-        poresBulkSave(designationEntityList, designationDataNodeList);
+          poresBulkSave(designationEntityList, designationDataNodeList);
 
-      }catch (Exception e){
-        logger.error(e.getMessage());
-        throw new CustomException("error while bulk indexing the data in es", e.getMessage(),
-            HttpStatus.INTERNAL_SERVER_ERROR);
+      } catch (Exception e) {
+          logger.error(e.getMessage());
+          throw new CustomException("error while bulk indexing the data in es", e.getMessage(),
+                  HttpStatus.INTERNAL_SERVER_ERROR);
       }
       log.info("DesignationServiceImpl::loadDesignationFromExcel::created the designations");
-    }
+      return  response;
   }
 
   private void poresBulkSave(List<DesignationEntity> designationEntityList,

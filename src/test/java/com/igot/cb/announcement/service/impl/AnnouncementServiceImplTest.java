@@ -492,7 +492,7 @@ class AnnouncementServiceImplTest {
         searchCriteria.setPageSize(0);
 
         // Mock Redis
-        ValueOperations<String, SearchResult> valueOperations = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(anyString())).thenReturn(null);
 

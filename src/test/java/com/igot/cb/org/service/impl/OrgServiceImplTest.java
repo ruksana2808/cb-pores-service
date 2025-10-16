@@ -407,7 +407,7 @@ class OrgServiceImplTest {
                 .thenReturn(frameworkResponse);
 
         // Act
-        String result = orgService.processFrameworkCreate(masterFramework, orgId,true);
+        String result = orgService.processFrameworkCreate(masterFramework, orgId);
 
         // Assert
         assertEquals(expectedNodeId, result);
@@ -431,7 +431,7 @@ class OrgServiceImplTest {
         failedResponse.put("responseCode", "ERROR");
 
         // Act
-        String result = orgService.processFrameworkCreate(masterFramework, orgId ,true);
+        String result = orgService.processFrameworkCreate(masterFramework, orgId );
 
         // Assert
         assertEquals("", result);
@@ -453,7 +453,7 @@ class OrgServiceImplTest {
 //        when(outboundRequestHandlerService.fetchResultUsingPost(anyString(), any(), any())).thenReturn(null);
 
         // Act
-        String result = orgService.processFrameworkCreate(masterFramework, orgId, false);
+        String result = orgService.processFrameworkCreate(masterFramework, orgId);
 
         // Assert
         assertEquals("", result);
@@ -477,7 +477,7 @@ class OrgServiceImplTest {
             .thenReturn(emptyResponse);
 
         // Act
-        String result = orgService.processFrameworkCreate(masterFramework, orgId, true);
+        String result = orgService.processFrameworkCreate(masterFramework, orgId);
 
         // Assert
         assertEquals("", result);
@@ -547,7 +547,7 @@ class OrgServiceImplTest {
 
         // Mocking the private methods
         // Note: This assumes you have a way to mock private methods. If not, you might need to refactor the code to make testing easier.
-        when(orgService.processFrameworkCreate(frameworkName, orgId, true)).thenReturn(newFrameworkId);
+        when(orgService.processFrameworkCreate(frameworkName, orgId)).thenReturn(newFrameworkId);
 
         // Act
         ApiResponse response = orgService.readFramework(frameworkName, orgId, termName, userAuthToken);
@@ -596,7 +596,7 @@ class OrgServiceImplTest {
 
         // Mocking the private methods
         // Note: This assumes you have a way to mock private methods. If not, you might need to refactor the code to make testing easier.
-        when(orgService.processFrameworkCreate(frameworkName, orgId, true)).thenReturn(newFrameworkId);
+        when(orgService.processFrameworkCreate(frameworkName, orgId)).thenReturn(newFrameworkId);
 
         // Act
         ApiResponse response = orgService.readFramework(frameworkName, orgId, termName, userAuthToken);
@@ -645,7 +645,7 @@ class OrgServiceImplTest {
 
         // Mocking the private methods
         // Note: This assumes you have a way to mock private methods. If not, you might need to refactor the code to make testing easier.
-        when(orgService.processFrameworkCreate(frameworkName, orgId, true)).thenReturn(newFrameworkId);
+        when(orgService.processFrameworkCreate(frameworkName, orgId)).thenReturn(newFrameworkId);
 
         // Act
         ApiResponse response = orgService.readFramework(frameworkName, orgId, termName, userAuthToken);
@@ -686,7 +686,7 @@ class OrgServiceImplTest {
                 eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.ORG_TABLE), anyMap(), isNull(), eq(1)))
                 .thenReturn(null);
 
-        when(orgService.processFrameworkCreate(frameworkName, orgId, true)).thenReturn(newFrameworkId);
+        when(orgService.processFrameworkCreate(frameworkName, orgId)).thenReturn(newFrameworkId);
 
         // Act
         ApiResponse response = orgService.readFramework(frameworkName, orgId, termName, userAuthToken);
@@ -735,7 +735,7 @@ class OrgServiceImplTest {
 
         // Mocking the private methods
         // Note: This assumes you have a way to mock private methods. If not, you might need to refactor the code to make testing easier.
-        when(orgService.processFrameworkCreate(frameworkName, orgId,true)).thenReturn(newFrameworkId);
+        when(orgService.processFrameworkCreate(frameworkName, orgId)).thenReturn(newFrameworkId);
 
         // Act
         ApiResponse response = orgService.readFramework(frameworkName, orgId, termName, userAuthToken);

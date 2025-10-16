@@ -260,4 +260,74 @@ class PlayListControllerTest {
         assertEquals(HttpStatus.OK, result.getStatusCode());
     }
 
+    @Test
+    void testUpdateV1Playlist() throws JsonProcessingException {
+        JsonNode playListDetails = new ObjectMapper().readTree("{\"id\":\"1\",\"name\":\"Playlist V1\"}");
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.setResponseCode(HttpStatus.OK);
+
+        when(playListSerive.updatePlayList(playListDetails)).thenReturn(mockResponse);
+
+        ResponseEntity<ApiResponse> result = (ResponseEntity<ApiResponse>) playListController.update(playListDetails);
+
+        assertEquals(HttpStatus.OK, result.getStatusCode());
+        assertEquals(mockResponse, result.getBody());
+    }
+
+    @Test
+    void testPlayListReadV1() {
+        String id = "playlist1";
+        String orgId = "org1";
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.setResponseCode(HttpStatus.OK);
+
+        when(playListSerive.readPlaylist(id, orgId)).thenReturn(mockResponse);
+
+        ResponseEntity<ApiResponse> result = (ResponseEntity<ApiResponse>) playListController.playListRead(id, orgId);
+
+        assertEquals(HttpStatus.OK, result.getStatusCode());
+        assertEquals(mockResponse, result.getBody());
+        verify(playListSerive).readPlaylist(id, orgId);
+    }
+
+    @Test
+    void testPlayListSearchWithoutCaching() {
+        SearchCriteria searchDto = new SearchCriteria();
+        ApiResponse mockResponse = new ApiResponse();
+        mockResponse.setResponseCode(HttpStatus.OK);
+
+        when(playListSerive.searchPlayListWithoutCaching(searchDto)).thenReturn(mockResponse);
+
+        ResponseEntity<ApiResponse> result = (ResponseEntity<ApiResponse>) playListController.playListSearchWithoutCaching(searchDto);
+
+        assertEquals(HttpStatus.OK, result.getStatusCode());
+        assertEquals(mockResponse, result.getBody());
+        verify(playListSerive).searchPlayListWithoutCaching(searchDto);
+    }
+
+    @Test
+    void testCreateV2_ExceptionHandling() {
+        JsonNode playListDetails = new ObjectMapper().createObjectNode();
+        when(playListSerive.createV2PlayList(any())).thenThrow(new RuntimeException("Service exception"));
+
+        try {
+            playListController.createV2(playListDetails);
+        } catch (RuntimeException ex) {
+            assertEquals("Service exception", ex.getMessage());
+        }
+    }
+
+    @Test
+    void testUpdateV2_ExceptionHandling() throws JsonProcessingException {
+        JsonNode playListDetails = new ObjectMapper().createObjectNode();
+        when(playListSerive.updateV2PlayList(any())).thenThrow(new RuntimeException("Service exception"));
+
+        try {
+            playListController.updateV2(playListDetails);
+        } catch (RuntimeException ex) {
+            assertEquals("Service exception", ex.getMessage());
+        }
+    }
+
+
 }
