@@ -177,7 +177,7 @@ public class AccessTokenValidator {
                 response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
                 clientAccessTokenId = null;
             }
-        }else{
+        } else {
             response.getParams().setStatus(Constants.FAILED);
             response.getParams().setErrMsg(Constants.ACCESS_TOKEN_VALIDATION_FAILED);
             response.setResponseCode(HttpStatus.BAD_REQUEST);
