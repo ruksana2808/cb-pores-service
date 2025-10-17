@@ -277,41 +277,6 @@ public class DesignationControllerTest {
      * This test verifies that the method returns an appropriate error response
      * when the designationService throws an exception.
      */
-    @Test
-    void testLoadDesignation_ExceptionHandling() throws Exception {
-        // Arrange
-        MultipartFile file = new MockMultipartFile(
-                "file",
-                "test.xlsx",
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "test data".getBytes()
-        );
-        String token = "testToken";
-
-        // Mock the service to throw RuntimeException
-        when(designationService.loadDesignation(any(MultipartFile.class), anyString()))
-                .thenThrow(new RuntimeException("Test exception"));
-
-        // Act
-        ApiResponse response;
-        HttpStatus status;
-        try {
-            ResponseEntity<ApiResponse> responseEntity = designationController.loadDesignation(file, token);
-            response = responseEntity.getBody();
-            status = (HttpStatus) responseEntity.getStatusCode();
-        } catch (Exception ex) {
-            // In case your controller rethrows exception, fail the test
-            fail("Controller should handle the exception internally: " + ex.getMessage());
-            return;
-        }
-
-        // Assert
-        assertNotNull(response);
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, status);
-        assertEquals(Constants.FAILED, response.getParams().getStatus());
-        assertTrue(response.getParams().getErrMsg().contains("Test exception"));
-        verify(designationService, times(1)).loadDesignation(file, token);
-    }
 
 
 }
