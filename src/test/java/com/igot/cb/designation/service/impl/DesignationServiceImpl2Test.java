@@ -119,19 +119,14 @@ class DesignationServiceImpl2Test {
 
     @Test
     void testLoadDesignation_Success() throws Exception {
-        // 1. Mock repository and token validator
         when(designationRepository.count()).thenReturn(0L);
         when(accessTokenValidator.fetchUserIdFromAccessToken(eq(TOKEN), any(ApiResponse.class)))
                 .thenReturn("user-1");
         when(esUtilService.isIndexPresent(Constants.DESIGNATION_INDEX_NAME)).thenReturn(true);
-
-        // 2. Create dummy SearchResult (no duplicates)
         JsonNode mockEsData = new ObjectMapper().createArrayNode();
         SearchResult searchResult = new SearchResult();
         searchResult.setData(mockEsData);
         when(esUtilService.searchDocuments(eq(Constants.DESIGNATION_INDEX_NAME), any())).thenReturn(searchResult);
-
-        // 3. Prepare input MultipartFile (mock Excel)
         Workbook workbook = new XSSFWorkbook();
         Sheet sheet = workbook.createSheet();
         Row header = sheet.createRow(0);
@@ -141,24 +136,17 @@ class DesignationServiceImpl2Test {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         workbook.write(out);
         workbook.close();
-
         MockMultipartFile mockExcelFile = new MockMultipartFile(
                 "file", "test.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 out.toByteArray()
         );
-
-        // 4. Mock objectMapper responses
         ObjectMapper realMapper = new ObjectMapper();
         JsonNode excelJson = realMapper.valueToTree(List.of(Map.of("Designation", "Developer")));
         ObjectNode emptyObjNode = realMapper.createObjectNode();
         when(objectMapper.valueToTree(any())).thenReturn(excelJson);
         when(objectMapper.createObjectNode()).thenReturn(emptyObjNode);
-
-        // 5. Invoke loadDesignation
         ApiResponse response = designationService.loadDesignation(mockExcelFile, TOKEN);
-
-        // 6. Assert the response
         assertNotNull(response);
         assertEquals(Constants.API_DESIGNATION_UPLOAD, response.getId());
         assertEquals(Constants.SUCCESS, response.getParams().getStatus()); // Assuming default status is SUCCESS

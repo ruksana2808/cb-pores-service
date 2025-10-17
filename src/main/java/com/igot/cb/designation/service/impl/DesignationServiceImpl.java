@@ -63,6 +63,7 @@ import org.apache.commons.collections.MapUtils;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
+import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
@@ -117,13 +118,31 @@ public class DesignationServiceImpl implements DesignationService {
   @Autowired
   private AccessTokenValidator accessTokenValidator;
 
+  @Value("${designation.search.page-size}")
+  private int designationPageSize;
+
 
 
   @Override
   public ApiResponse loadDesignation(MultipartFile file, String token) {
       log.info("DesignationServiceImpl::loadDesignationFromExcel");
       ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_DESIGNATION_UPLOAD);
-      List<Map<String, String>> processedData = processExcelFile(file);
+      if (ObjectUtils.isEmpty(file) || file.isEmpty()) {
+          response.getParams().setStatus(Constants.FAILED);
+          response.getParams().setErrMsg("Uploaded file is empty or missing");
+          response.setResponseCode(HttpStatus.BAD_REQUEST);
+          return response;
+      }
+      List<Map<String, String>> processedData;
+      try {
+          processedData = processExcelFile(file);
+      } catch (Exception e) {
+          log.error("Error processing Excel file", e);
+          response.getParams().setStatus(Constants.FAILED);
+          response.getParams().setErrMsg("Failed to process Excel file: " + e.getMessage());
+          response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
+          return response;
+      }
       log.info("No.of processedData from excel: " + processedData.size());
       JsonNode designationJson = objectMapper.valueToTree(processedData);
       AtomicLong startingId = new AtomicLong(designationRepository.count());
@@ -133,7 +152,7 @@ public class DesignationServiceImpl implements DesignationService {
       }
       SearchCriteria searchCriteria = new SearchCriteria();
       searchCriteria.setPageNumber(0);
-      searchCriteria.setPageSize(5000);
+      searchCriteria.setPageSize(designationPageSize);
       searchCriteria.setRequestedFields(Collections.singletonList(Constants.DESIGNATION));
       JsonNode dataJson = objectMapper.createObjectNode();
       try {
@@ -145,8 +164,11 @@ public class DesignationServiceImpl implements DesignationService {
           }
       } catch (Exception e) {
           log.error("Error occurred while fetching data from Es for duplicate check creating Designation", e);
-          throw new CustomException("error while fetching data from Es for validation", e.getMessage(),
-                  HttpStatus.INTERNAL_SERVER_ERROR);
+          log.error("Error fetching data from ES", e);
+          response.getParams().setStatus(Constants.FAILED);
+          response.getParams().setErrMsg("Error fetching data from Elasticsearch: " + e.getMessage());
+          response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
+          return response;
       }
 
       Map<String, Boolean> titles = new HashMap<>();
@@ -161,11 +183,11 @@ public class DesignationServiceImpl implements DesignationService {
       }
       designationJson.forEach(
               eachDesignation -> {
-                  if (!eachDesignation.isNull() && eachDesignation.has("Designation") && !eachDesignation.get("Designation").isNull()) {
-                      if (eachDesignation.has("Designation") && !eachDesignation.get(
-                              "Designation").isNull()) {
+                  if (!eachDesignation.isNull() && eachDesignation.has(Constants.DESIGNATION_KEY) && !eachDesignation.get(Constants.DESIGNATION_KEY).isNull()) {
+                      if (eachDesignation.has(Constants.DESIGNATION_KEY) && !eachDesignation.get(
+                              Constants.DESIGNATION_KEY).isNull()) {
                           ((ObjectNode) eachDesignation).put(Constants.DESIGNATION,
-                                  eachDesignation.get("Designation"));
+                                  eachDesignation.get(Constants.DESIGNATION_KEY));
                       }
                       if (eachDesignation.has(Constants.UPDATED_DESIGNATION) && !eachDesignation.get(
                               Constants.UPDATED_DESIGNATION).isNull()) {
@@ -189,8 +211,11 @@ public class DesignationServiceImpl implements DesignationService {
 
       } catch (Exception e) {
           logger.error(e.getMessage());
-          throw new CustomException("error while bulk indexing the data in es", e.getMessage(),
-                  HttpStatus.INTERNAL_SERVER_ERROR);
+          log.error("Error during bulk save: {}", e.getMessage(), e);
+          response.getParams().setStatus(Constants.FAILED);
+          response.getParams().setErrMsg("Error during bulk indexing in ES: " + e.getMessage());
+          response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
+          return response;
       }
       log.info("DesignationServiceImpl::loadDesignationFromExcel::created the designations");
       return  response;

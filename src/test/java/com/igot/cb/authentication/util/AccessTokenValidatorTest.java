@@ -158,7 +158,6 @@ class AccessTokenValidatorTest {
         doReturn(expectedUserId).when(spyAccessTokenValidator).verifyUserToken(accessToken);
         String actualUserId = spyAccessTokenValidator.fetchUserIdFromAccessToken(accessToken, response);
         assertEquals(expectedUserId, actualUserId);
-        // The response should remain default because token is valid
         assertNull(response.getParams().getStatus());
         assertNull(response.getParams().getErrMsg());
     }

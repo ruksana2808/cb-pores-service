@@ -381,6 +381,7 @@ public class Constants {
     public static final String API_DESIGNATION_UPLOAD = "api.designation.upload";
     public static final String ACCESS_TOKEN_IS_EXPIRED = "Access token is expired";
     public static final String ACCESS_TOKEN_VALIDATION_FAILED = "Access token validation is failed";
+    public static final String DESIGNATION_KEY = "Designation";
 
     private Constants() {
     }

@@ -160,7 +160,7 @@ public class AccessTokenValidator {
 
     public String fetchUserIdFromAccessToken(String accessToken, ApiResponse response) {
         String clientAccessTokenId = null;
-        if (accessToken != null) {
+        if (StringUtils.isNotEmpty(accessToken)) {
             try {
                 clientAccessTokenId = verifyUserToken(accessToken);
                 if (Constants.UNAUTHORIZED.equalsIgnoreCase(clientAccessTokenId)) {
