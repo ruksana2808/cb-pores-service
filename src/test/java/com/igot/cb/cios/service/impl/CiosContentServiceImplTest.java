@@ -340,8 +340,8 @@ class CiosContentServiceImplTest {
         JsonNode contentPartner = mock(JsonNode.class);
         List<String> tags = new ArrayList<>();
 
-        objectDto.setCompetencies_v5(competenciesV5);
-        objectDto.setCompetencies_v6(competenciesV6);
+        objectDto.setCompetenciesV5(competenciesV5);
+        objectDto.setCompetenciesV6(competenciesV6);
         objectDto.setContentPartner(contentPartner);
         objectDto.setTags(tags);
 
@@ -370,8 +370,8 @@ class CiosContentServiceImplTest {
         // Mock competencies
         JsonNode competenciesV5 = mock(JsonNode.class);
         JsonNode competenciesV6 = mock(JsonNode.class);
-        objectDto.setCompetencies_v5(competenciesV5);
-        objectDto.setCompetencies_v6(competenciesV6);
+        objectDto.setCompetenciesV5(competenciesV5);
+        objectDto.setCompetenciesV6(competenciesV6);
 
         // Mock content partner
         JsonNode contentPartner = mock(JsonNode.class);
@@ -417,8 +417,8 @@ class CiosContentServiceImplTest {
         JsonNode contentPartner = mock(JsonNode.class);
         JsonNode contentData = mock(JsonNode.class);
 
-        objectDto.setCompetencies_v5(competenciesV5);
-        objectDto.setCompetencies_v6(competenciesV6);
+        objectDto.setCompetenciesV5(competenciesV5);
+        objectDto.setCompetenciesV6(competenciesV6);
         objectDto.setContentPartner(contentPartner);
         objectDto.setContentData(contentData);
 
@@ -501,8 +501,8 @@ class CiosContentServiceImplTest {
         JsonNode contentData = mock(JsonNode.class);
         JsonNode contentNode = mock(ObjectNode.class);
 
-        objectDto.setCompetencies_v5(competenciesV5);
-        objectDto.setCompetencies_v6(competenciesV6);
+        objectDto.setCompetenciesV5(competenciesV5);
+        objectDto.setCompetenciesV6(competenciesV6);
         objectDto.setContentPartner(contentPartner);
         objectDto.setContentData(contentData);
 
@@ -538,7 +538,7 @@ class CiosContentServiceImplTest {
         objectDto.setStatus("draft");
 
         JsonNode competenciesV5 = objectMapper.createObjectNode();
-        objectDto.setCompetencies_v5(competenciesV5);
+        objectDto.setCompetenciesV5(competenciesV5);
 
         JsonNode contentPartner = objectMapper.createObjectNode();
         objectDto.setContentPartner(contentPartner);
@@ -570,8 +570,8 @@ class CiosContentServiceImplTest {
         List<ObjectDto> dataList = new ArrayList<>();
         ObjectDto objectDto = new ObjectDto();
         objectDto.setStatus("draft");
-        objectDto.setCompetencies_v5(createMockJsonNode());
-        objectDto.setCompetencies_v6(createMockJsonNode());
+        objectDto.setCompetenciesV5(createMockJsonNode());
+        objectDto.setCompetenciesV6(createMockJsonNode());
         objectDto.setTags(List.of("tag1", "tag2"));
         objectDto.setContentData(createMockContentData());
         dataList.add(objectDto);

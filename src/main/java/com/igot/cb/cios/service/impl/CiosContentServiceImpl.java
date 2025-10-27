@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.igot.cb.cios.dto.ObjectDto;
 import com.igot.cb.cios.entity.CiosContentEntity;
 import com.igot.cb.cios.repository.CiosRepository;
@@ -28,6 +29,7 @@ import com.igot.cb.pores.util.Constants;
 import com.igot.cb.pores.util.PayloadValidation;
 import com.networknt.schema.JsonSchema;
 import com.networknt.schema.JsonSchemaFactory;
+import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -109,7 +111,11 @@ public class CiosContentServiceImpl implements CiosContentService {
                 response = objectMapper.readValue(cachedJson, new TypeReference<Object>() {
                 });
             } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
+                throw new CustomException(
+                        "CACHED_JSON_PARSE_ERROR",
+                        "Failed to parse cached JSON: " + e.getMessage(),
+                        HttpStatus.INTERNAL_SERVER_ERROR
+                );
             }
         } else {
             Optional<CiosContentEntity> optionalJsonNodeEntity = ciosRepository.findByContentIdAndIsActive(contentId, true);
@@ -136,17 +142,17 @@ public class CiosContentServiceImpl implements CiosContentService {
         if (ciosContentEntity.isPresent()) {
             CiosContentEntity fetchedEntity = ciosContentEntity.get();
             JsonNode fetchedJsonData = fetchedEntity.getCiosData();
-            String partnerCode = fetchedJsonData.path("content").path("contentPartner").get("partnerCode").asText();
-            ((ObjectNode) fetchedJsonData.path("content")).put(Constants.UPDATED_ON, String.valueOf(currentTime));
-            ((ObjectNode) fetchedJsonData.path("content")).put(Constants.IS_ACTIVE, Constants.ACTIVE_STATUS_FALSE);
-            ((ObjectNode) fetchedJsonData.path("content")).put(Constants.STATUS, Constants.DRAFT);
+            String partnerCode = fetchedJsonData.path(Constants.CONTENT).path(Constants.CONTENT_PARTNER).get(Constants.PARTNERCODE).asText();
+            ((ObjectNode) fetchedJsonData.path(Constants.CONTENT)).put(Constants.UPDATED_ON, String.valueOf(currentTime));
+            ((ObjectNode) fetchedJsonData.path(Constants.CONTENT)).put(Constants.IS_ACTIVE, Constants.ACTIVE_STATUS_FALSE);
+            ((ObjectNode) fetchedJsonData.path(Constants.CONTENT)).put(Constants.STATUS, Constants.DRAFT);
             fetchedEntity.setCiosData(fetchedJsonData);
             fetchedEntity.setLastUpdatedOn(currentTime);
             fetchedEntity.setIsActive(false);
             ciosRepository.save(fetchedEntity);
             apiCallToCiosSecondaryDbForUpdateData(fetchedJsonData);
             fetchAndUpdateContentCountsInPartnerDb(partnerCode);
-            Map<String, Object> map = objectMapper.convertValue(fetchedEntity.getCiosData().get("content"), Map.class);
+            Map<String, Object> map = objectMapper.convertValue(fetchedEntity.getCiosData().get(Constants.CONTENT), Map.class);
             esUtilService.addDocument(Constants.CIOS_INDEX_NAME, Constants.INDEX_TYPE, fetchedEntity.getContentId(), map, cbServerProperties.getElasticCiosJsonPath());
             cacheService.deleteCache(fetchedEntity.getContentId());
             log.info("deleted content");
@@ -174,7 +180,11 @@ public class CiosContentServiceImpl implements CiosContentService {
                 response = objectMapper.readValue(cachedJson, new TypeReference<Object>() {
                 });
             } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
+                throw new CustomException(
+                        "CACHED_JSON_PARSE_ERROR",
+                        "Failed to parse cached JSON: " + e.getMessage(),
+                        HttpStatus.INTERNAL_SERVER_ERROR
+                );
             }
         } else {
             Optional<CiosContentEntity> optionalJsonNodeEntity = ciosRepository.findByExternalIdAndPartnerId(externalid,partnerid);
@@ -206,17 +216,17 @@ public class CiosContentServiceImpl implements CiosContentService {
                     log.info("Status of the data {}",eachData.getStatus());
                     JsonNode jsonNode = eachData.getContentData();
                     payloadValidation.validatePayload(Constants.CIOS_CONTENT_VALIDATION_FILE_JSON,jsonNode);
-                    ObjectNode contentNode = (ObjectNode) jsonNode.path("content");
-                    contentNode.put(Constants.STATUS, eachData.getStatus());
+                    ObjectNode contentNode = (ObjectNode) jsonNode.path(Constants.CONTENT);
+                    contentNode.set(Constants.STATUS, new TextNode(eachData.getStatus()));
                     contentNode.put(Constants.IS_ACTIVE, Constants.ACTIVE_STATUS_FALSE);
                     contentNode.put(Constants.PUBLISHED_ON, "0000-00-00 00:00:00.000");
                     contentNode.put(Constants.UPDATED_DATE, timestamp.toString());
                     contentNode.put(Constants.CREATED_DATE, timestamp.toString());
-                    if (eachData.getCompetencies_v5() != null) {
-                        contentNode.set(Constants.COMPETENCIES_V5, eachData.getCompetencies_v5());
+                    if (eachData.getCompetenciesV5() != null) {
+                        contentNode.set(Constants.COMPETENCIES_V5, eachData.getCompetenciesV5());
                     }
-                    if (eachData.getCompetencies_v6() != null) {
-                        contentNode.set(Constants.COMPETENCIES_V6, eachData.getCompetencies_v6());
+                    if (eachData.getCompetenciesV6() != null) {
+                        contentNode.set(Constants.COMPETENCIES_V6, eachData.getCompetenciesV6());
                     }
                     if (eachData.getContentPartner() != null) {
                         contentNode.set(Constants.CONTENT_PARTNER, eachData.getContentPartner());
@@ -231,18 +241,18 @@ public class CiosContentServiceImpl implements CiosContentService {
                     ciosRequestPayloadValidation.validateModel(eachData);
                     JsonNode jsonNode = eachData.getContentData();
                     payloadValidation.validatePayload(Constants.CIOS_CONTENT_VALIDATION_FILE_JSON,jsonNode);
-                    ObjectNode contentNode = (ObjectNode) jsonNode.path("content");
-                    contentNode.put(Constants.STATUS, eachData.getStatus());
+                    ObjectNode contentNode = (ObjectNode) jsonNode.path(Constants.CONTENT);
+                    contentNode.set(Constants.STATUS, new TextNode(eachData.getStatus()));
                     contentNode.put(Constants.IS_ACTIVE, Constants.ACTIVE_STATUS);
                     contentNode.put(Constants.PUBLISHED_ON, timestamp.toString());
                     contentNode.put(Constants.UPDATED_DATE, timestamp.toString());
-                    if (eachData.getCompetencies_v5() != null) {
-                        payloadValidation.validatePayload(Constants.COMPETENCIESVALIDATION_FILE_JSON, eachData.getCompetencies_v5());
-                        contentNode.set(Constants.COMPETENCIES_V5, eachData.getCompetencies_v5());
+                    if (eachData.getCompetenciesV5() != null) {
+                        payloadValidation.validatePayload(Constants.COMPETENCIESVALIDATION_FILE_JSON, eachData.getCompetenciesV5());
+                        contentNode.set(Constants.COMPETENCIES_V5, eachData.getCompetenciesV5());
                     }
-                    if (eachData.getCompetencies_v6() != null) {
-                        payloadValidation.validatePayload(Constants.COMPETENCIES_V6_VALIDATION_FILE_JSON, eachData.getCompetencies_v6());
-                        contentNode.set(Constants.COMPETENCIES_V6, eachData.getCompetencies_v6());
+                    if (eachData.getCompetenciesV6() != null) {
+                        payloadValidation.validatePayload(Constants.COMPETENCIES_V6_VALIDATION_FILE_JSON, eachData.getCompetenciesV6());
+                        contentNode.set(Constants.COMPETENCIES_V6, eachData.getCompetenciesV6());
                     }
                     if (eachData.getContentPartner() != null) {
                         payloadValidation.validatePayload(Constants.CONTENT_PARTNER_FILE_JSON, eachData.getContentPartner());
@@ -256,7 +266,7 @@ public class CiosContentServiceImpl implements CiosContentService {
                     CiosContentEntity ciosContentEntity = createNewContent(jsonNode);
                     ciosRepository.save(ciosContentEntity);
                     log.info("Id of content created: {}", ciosContentEntity.getContentId());
-                    Map<String, Object> map = objectMapper.convertValue(ciosContentEntity.getCiosData().get("content"), Map.class);
+                    Map<String, Object> map = objectMapper.convertValue(ciosContentEntity.getCiosData().get(Constants.CONTENT), Map.class);
                     log.debug("map value for elastic search {}", map);
                     cacheService.putCache(ciosContentEntity.getContentId(), ciosContentEntity.getCiosData());
                     esUtilService.addDocument(Constants.CIOS_INDEX_NAME, Constants.INDEX_TYPE, ciosContentEntity.getContentId(), map, cbServerProperties.getElasticCiosJsonPath());
@@ -353,8 +363,8 @@ public class CiosContentServiceImpl implements CiosContentService {
         try {
             Timestamp currentTime = new Timestamp(System.currentTimeMillis());
             CiosContentEntity igotContent = new CiosContentEntity();
-            String externalId = ciosRequestInput.path("content").path("externalId").asText();
-            String partnerId = ciosRequestInput.path("content").path("contentPartner").get("id").asText();
+            String externalId = ciosRequestInput.path(Constants.CONTENT).path("externalId").asText();
+            String partnerId = ciosRequestInput.path(Constants.CONTENT).path(Constants.CONTENT_PARTNER).get("id").asText();
             Optional<CiosContentEntity> ciosContentEntity = ciosRepository.findByExternalIdAndPartnerId(externalId, partnerId);
             if (!ciosContentEntity.isPresent()) {
                 igotContent.setContentId(generateId());
@@ -363,10 +373,10 @@ public class CiosContentServiceImpl implements CiosContentService {
                 igotContent.setLastUpdatedOn(currentTime);
                 igotContent.setIsActive(Constants.ACTIVE_STATUS);
                 igotContent.setPartnerId(partnerId);
-                ((ObjectNode) ciosRequestInput.path("content")).put("contentId", igotContent.getContentId());
-                ((ObjectNode) ciosRequestInput.path("content")).put(Constants.CREATED_ON, String.valueOf(currentTime));
-                ((ObjectNode) ciosRequestInput.path("content")).put(Constants.LAST_UPDATED_ON, String.valueOf(currentTime));
-                ((ObjectNode) ciosRequestInput.path("content")).put(Constants.STATUS, Constants.LIVE);
+                ((ObjectNode) ciosRequestInput.path(Constants.CONTENT)).put(Constants.CONTENT_ID, igotContent.getContentId());
+                ((ObjectNode) ciosRequestInput.path(Constants.CONTENT)).put(Constants.CREATED_ON, String.valueOf(currentTime));
+                ((ObjectNode) ciosRequestInput.path(Constants.CONTENT)).put(Constants.LAST_UPDATED_ON, String.valueOf(currentTime));
+                ((ObjectNode) ciosRequestInput.path(Constants.CONTENT)).put(Constants.STATUS, Constants.LIVE);
                 igotContent.setCiosData(ciosRequestInput);
             } else {
                 igotContent.setContentId(ciosContentEntity.get().getContentId());
@@ -375,10 +385,10 @@ public class CiosContentServiceImpl implements CiosContentService {
                 igotContent.setLastUpdatedOn(currentTime);
                 igotContent.setIsActive(Constants.ACTIVE_STATUS);
                 igotContent.setPartnerId(partnerId);
-                ((ObjectNode) ciosRequestInput.path("content")).put("contentId", ciosContentEntity.get().getContentId());
-                ((ObjectNode) ciosRequestInput.path("content")).put(Constants.CREATED_ON, String.valueOf(igotContent.getCreatedOn()));
-                ((ObjectNode) ciosRequestInput.path("content")).put(Constants.LAST_UPDATED_ON, String.valueOf(currentTime));
-                ((ObjectNode) ciosRequestInput.path("content")).put(Constants.STATUS, Constants.LIVE);
+                ((ObjectNode) ciosRequestInput.path(Constants.CONTENT)).put(Constants.CONTENT_ID, ciosContentEntity.get().getContentId());
+                ((ObjectNode) ciosRequestInput.path(Constants.CONTENT)).put(Constants.CREATED_ON, String.valueOf(igotContent.getCreatedOn()));
+                ((ObjectNode) ciosRequestInput.path(Constants.CONTENT)).put(Constants.LAST_UPDATED_ON, String.valueOf(currentTime));
+                ((ObjectNode) ciosRequestInput.path(Constants.CONTENT)).put(Constants.STATUS, Constants.LIVE);
                 igotContent.setCiosData(ciosRequestInput);
             }
             return igotContent;
@@ -397,11 +407,12 @@ public class CiosContentServiceImpl implements CiosContentService {
         if (contentName != null && !tags.contains(contentName)) {
             lowercaseTags.add(contentName);
         }
-        lowercaseTags.addAll(tags.stream()
-                .map(String::toLowerCase)
-                .collect(Collectors.toList()));
-        ArrayNode searchTagsArray = objectMapper.valueToTree(lowercaseTags);
-        return searchTagsArray;
+        lowercaseTags.addAll(
+                tags.stream()
+                        .map(String::toLowerCase)
+                        .toList()
+        );
+        return objectMapper.valueToTree(lowercaseTags);
     }
 
     @Override
@@ -454,7 +465,8 @@ public class CiosContentServiceImpl implements CiosContentService {
     public void validatePayload(String fileName, JsonNode payload) {
         log.info("CiosContentServiceImpl::validatePayload");
         try {
-            JsonSchemaFactory schemaFactory = JsonSchemaFactory.getInstance();
+            JsonSchemaFactory schemaFactory = JsonSchemaFactory.builder(JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7))
+                    .build();
             InputStream schemaStream = schemaFactory.getClass().getResourceAsStream(fileName);
             JsonSchema schema = schemaFactory.getSchema(schemaStream);
 

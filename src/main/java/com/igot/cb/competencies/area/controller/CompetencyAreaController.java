@@ -53,13 +53,13 @@ public class CompetencyAreaController {
   }
 
   @PostMapping("/search")
-  public ResponseEntity<?> search(@RequestBody SearchCriteria searchCriteria) {
+  public ResponseEntity<CustomResponse> search(@RequestBody SearchCriteria searchCriteria) {
     CustomResponse response = competencyAreaService.searchCompArea(searchCriteria);
     return new ResponseEntity<>(response, response.getResponseCode());
   }
 
   @GetMapping("/read/{id}")
-  public ResponseEntity<?> competencyAreatRead(@PathVariable String id) {
+  public ResponseEntity<CustomResponse> competencyAreatRead(@PathVariable String id) {
     CustomResponse response = competencyAreaService.readCompArea(id);
     return new ResponseEntity<>(response, response.getResponseCode());
   }

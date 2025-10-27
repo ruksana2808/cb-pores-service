@@ -117,25 +117,25 @@ public class CompetencyAreaServiceImpl implements CompetencyAreaService {
           titles.put(node.get(Constants.TITLE).asText().toLowerCase(), true);
         }
       });
-      jsonNode.forEach(
-          eachCompArea -> {
-            if (!eachCompArea.isNull() && eachCompArea.has(Constants.COMPETENCY_AREA_TYPE)){
-             if (!eachCompArea.get(
-                 Constants.COMPETENCY_AREA_TYPE).asText().isEmpty()){
-               if (!titles.containsKey(eachCompArea.get(Constants.COMPETENCY_AREA_TYPE).asText().toLowerCase())) {
-                 String formattedId = String.format("COMAREA-%06d", startingId.incrementAndGet());
-                 JsonNode dataNode = validateAndSetData(eachCompArea, userId, formattedId);
-                 CompetencyAreaEntity competencyAreaEntity = createCompetencyArea(dataNode, formattedId);
-                 competencyAreaEntityList.add(competencyAreaEntity);
-                 competencydataNodeList.add(dataNode);
-                 titles.put(dataNode.get(Constants.TITLE).asText().toLowerCase(), true);
-               }
+        jsonNode.forEach(eachCompArea -> {
+            JsonNode typeNode = eachCompArea.path(Constants.COMPETENCY_AREA_TYPE);
+            String type = (typeNode.isMissingNode() || typeNode.isNull()) ? "" : typeNode.asText();
 
-             }
+            if (!eachCompArea.isNull()
+                    && typeNode.isTextual()
+                    && !type.isEmpty()
+                    && !titles.containsKey(type.toLowerCase())) {
+
+                String formattedId = String.format("COMAREA-%06d", startingId.incrementAndGet());
+                JsonNode dataNode = validateAndSetData(eachCompArea, userId, formattedId);
+                CompetencyAreaEntity competencyAreaEntity = createCompetencyArea(dataNode, formattedId);
+
+                competencyAreaEntityList.add(competencyAreaEntity);
+                competencydataNodeList.add(dataNode);
+                titles.put(dataNode.get(Constants.TITLE).asText().toLowerCase(), true);
             }
-
-          });
-      poresBulkSave(competencyAreaEntityList, competencydataNodeList);
+        });
+        poresBulkSave(competencyAreaEntityList, competencydataNodeList);
     }
   }
 
@@ -290,13 +290,13 @@ public class CompetencyAreaServiceImpl implements CompetencyAreaService {
     log.info("CompetencyAreaService::addExtraFields");
     ((ObjectNode) competencyArea).put(Constants.TYPE, Constants.COMPETENCY_AREA_TYPE);
     ((ObjectNode) competencyArea).put(Constants.VERSION, 1);
-    ((ObjectNode) competencyArea).put(Constants.SOURCE, (JsonNode) null);
+    ((ObjectNode) competencyArea).set(Constants.SOURCE, (JsonNode) null);
     ((ObjectNode) competencyArea).putArray(Constants.ADDITIONAL_PROPERTIES);
     ((ObjectNode) competencyArea).put(Constants.LEVEL, Constants.INITIATIVE);
     ((ObjectNode) competencyArea).put(Constants.IS_ACTIVE, true);
-    ((ObjectNode) competencyArea).put(Constants.REVIEWED_BY, (JsonNode) null);
-    ((ObjectNode) competencyArea).put(Constants.REVIEWED_DATE, (JsonNode) null);
-    ((ObjectNode) competencyArea).put(Constants.ADDITIONAL_PROPERTIES, (JsonNode) null);
+    ((ObjectNode) competencyArea).set(Constants.REVIEWED_BY, (JsonNode) null);
+    ((ObjectNode) competencyArea).set(Constants.REVIEWED_DATE, (JsonNode) null);
+    ((ObjectNode) competencyArea).set(Constants.ADDITIONAL_PROPERTIES, (JsonNode) null);
     return competencyArea;
   }
 
@@ -324,11 +324,11 @@ public class CompetencyAreaServiceImpl implements CompetencyAreaService {
               // Update the main JsonNode with the value from the update JsonNode
               ((ObjectNode) dataNode).set(fieldName, updatedCompArea.get(fieldName));
             } else {
-              ((ObjectNode) dataNode).put(fieldName, updatedCompArea.get(fieldName));
+              ((ObjectNode) dataNode).set(fieldName, updatedCompArea.get(fieldName));
             }
           }
           compArea.get().setUpdatedOn(currentTime);
-          ((ObjectNode) dataNode).put(Constants.UPDATED_ON, new TextNode(
+          ((ObjectNode) dataNode).set(Constants.UPDATED_ON, new TextNode(
               convertTimeStampToDate(compArea.get().getUpdatedOn().getTime())));
           competencyAreaEntityUpdated = competencyAreaRepository.save(compArea.get());
           ObjectNode jsonNode = objectMapper.createObjectNode();
@@ -359,8 +359,8 @@ public class CompetencyAreaServiceImpl implements CompetencyAreaService {
         return response;
       }
     }catch (Exception e){
-      log.error("Error while processing file: {}", e.getMessage());
-      throw new RuntimeException(e.getMessage());
+        log.error("Error while processing file: {}", e.getMessage());
+        throw new CustomException("Error: ", "Error while processing file: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -515,15 +515,8 @@ public class CompetencyAreaServiceImpl implements CompetencyAreaService {
     response.setParams(new RespParam());
     response.getParams().setStatus(status);
     response.setResponseCode(httpStatus);
+    response.setMessage(errorMessage);
   }
 
-  private boolean existsInDataJson(JsonNode dateJson, String competencyAreaType) {
-    for (JsonNode node : dateJson) {
-      if (node.has("title") && node.get("title").asText().equals(competencyAreaType)) {
-        return true;
-      }
-    }
-    return false;
-  }
 
 }

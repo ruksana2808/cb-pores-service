@@ -42,7 +42,7 @@ public class CompetencyThemeController {
   }
 
   @PostMapping("/search")
-  public ResponseEntity<?> search(@RequestBody SearchCriteria searchCriteria) {
+  public ResponseEntity<CustomResponse> search(@RequestBody SearchCriteria searchCriteria) {
     CustomResponse response = competencyThemeService.searchCompTheme(searchCriteria);
     return new ResponseEntity<>(response, response.getResponseCode());
   }
@@ -60,7 +60,7 @@ public class CompetencyThemeController {
   }
 
   @GetMapping("/read/{id}")
-  public ResponseEntity<?> competencyThemeRead(@PathVariable String id) {
+  public ResponseEntity<CustomResponse> competencyThemeRead(@PathVariable String id) {
     CustomResponse response = competencyThemeService.readCompTheme(id);
     return new ResponseEntity<>(response, response.getResponseCode());
   }

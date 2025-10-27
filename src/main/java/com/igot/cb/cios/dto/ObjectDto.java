@@ -14,8 +14,8 @@ import java.util.List;
 @NoArgsConstructor
 public class ObjectDto{
     private JsonNode contentData;
-    private JsonNode competencies_v5;
-    private JsonNode competencies_v6;
+    private JsonNode competenciesV5;
+    private JsonNode competenciesV6;
     private JsonNode contentPartner;
     private List<String> tags;
     private String status;

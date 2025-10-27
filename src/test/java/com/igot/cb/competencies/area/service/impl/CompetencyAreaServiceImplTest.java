@@ -613,7 +613,6 @@ class CompetencyAreaServiceImplTest {
 
     @Test
     void testUpdateCompArea_ThrowsException() {
-        // given
         String testId = "comp123";
         ObjectNode input = new ObjectMapper().createObjectNode();
         input.put(Constants.ID, testId);
@@ -629,13 +628,13 @@ class CompetencyAreaServiceImplTest {
         when(competencyAreaRepository.findById(testId)).thenReturn(Optional.of(entity));
         when(competencyAreaRepository.save(any())).thenThrow(new RuntimeException("DB write failed"));
 
-        // when + then
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             competencyAreaService.updateCompArea(input);
         });
 
-        assertEquals("DB write failed", exception.getMessage());
+        assertTrue(exception.getMessage().contains("DB write failed"), "Expected exception message to contain 'DB write failed'");
     }
+
 
     @Test
     void testCreateCompArea_ErrorWhileProcessing() throws Exception {

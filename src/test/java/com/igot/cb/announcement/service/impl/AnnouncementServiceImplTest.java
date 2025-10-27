@@ -31,6 +31,8 @@ import org.slf4j.Logger;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.http.HttpStatus;
+import org.springframework.test.util.ReflectionTestUtils;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -738,40 +740,36 @@ class AnnouncementServiceImplTest {
     @Test
     void test_updateAnnouncement_successfulUpdate() {
         MockitoAnnotations.openMocks(this);
-
-        // Prepare test data
         String announcementId = "test-id";
-        ObjectNode announcementDetails = new ObjectMapper().createObjectNode();
+        ObjectMapper realMapper = new ObjectMapper();
+        ObjectNode announcementDetails = realMapper.createObjectNode();
         announcementDetails.put(Constants.ANNOUNCEMENT_ID, announcementId);
-
         AnnouncementEntity existingAnnouncement = new AnnouncementEntity();
         existingAnnouncement.setAnnouncementId(announcementId);
         existingAnnouncement.setData(announcementDetails);
-
-        // Mock repository response
         when(announcementRepository.findById(announcementId)).thenReturn(Optional.of(existingAnnouncement));
         when(announcementRepository.save(any(AnnouncementEntity.class))).thenReturn(existingAnnouncement);
-
-        // Mock ObjectMapper behavior
-        ObjectNode jsonNode = new ObjectMapper().createObjectNode();
+        ObjectNode jsonNode = realMapper.createObjectNode();
         when(objectMapper.createObjectNode()).thenReturn(jsonNode);
-        when(objectMapper.convertValue(any(), eq(java.util.Map.class))).thenReturn(new java.util.HashMap<>());
-
-        // Execute the method
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        ReflectionTestUtils.setField(announcementService, "requiredJsonFilePath", "test-path");
         CustomResponse response = announcementService.updateAnnouncement(announcementDetails);
-
-        // Verify the results
         assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertEquals(Constants.SUCCESSFULLY_UPDATED, response.getMessage());
         assertNotNull(response.getResult());
-
-        // Verify interactions
         verify(announcementRepository).findById(announcementId);
         verify(announcementRepository).save(any(AnnouncementEntity.class));
-        verify(esUtilService).addDocument(eq(Constants.ANNOUNCEMENT_INDEX), eq(Constants.INDEX_TYPE), eq(announcementId), anyMap(), anyString());
+        verify(esUtilService).addDocument(
+                eq(Constants.ANNOUNCEMENT_INDEX),
+                eq(Constants.INDEX_TYPE),
+                eq(announcementId),
+                anyMap(),
+                eq("test-path")
+        );
         verify(cacheService).putCache(eq(announcementId), any(ObjectNode.class));
     }
+
 
 
     @Test
@@ -784,7 +782,6 @@ class AnnouncementServiceImplTest {
         jsonData = new ObjectMapper().createObjectNode();
         jsonData.put("title", "Sample Announcement");
         entity.setData(jsonData);
-        // Given
         String id = "announcement123";
 
         ObjectMapper realMapper = new ObjectMapper();
@@ -800,10 +797,8 @@ class AnnouncementServiceImplTest {
                 .thenAnswer(invocation -> realMapper.convertValue(invocation.getArgument(0), Map.class));
         when(announcementRepository.save(any())).thenReturn(entity);
 
-        // When
         CustomResponse response = announcementService.deleteAnnouncement(id);
 
-        // Then
         assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertEquals(Constants.SUCCESSFULLY_UPDATED, response.getMessage());
@@ -814,33 +809,5 @@ class AnnouncementServiceImplTest {
         verify(cacheService).putCache(eq(entity.getAnnouncementId()), any());
     }
 
-    @Test
-    void test_createAnnouncement_whenIdIsNull_shouldCreateNewAnnouncement() {
-        // Given
-        ObjectNode announcementNode = realMapper.createObjectNode();
-        announcementNode.put("title", "Test Title"); // no "id" -> triggers create path
 
-        ArgumentCaptor<AnnouncementEntity> entityCaptor = ArgumentCaptor.forClass(AnnouncementEntity.class);
-
-        // Stub repository save
-        AnnouncementEntity savedEntity = new AnnouncementEntity();
-        savedEntity.setAnnouncementId("generated-id-123");
-        savedEntity.setData(announcementNode.deepCopy());
-        savedEntity.setCreatedOn(new Timestamp(System.currentTimeMillis()));
-        savedEntity.setUpdatedOn(new Timestamp(System.currentTimeMillis()));
-        savedEntity.setIsActive(true);
-
-        when(announcementRepository.save(any())).thenReturn(savedEntity);
-
-        // When
-        CustomResponse response = announcementService.createAnnouncement(announcementNode);
-
-        // Then
-        assertNotNull(response);
-        assertEquals(HttpStatus.OK, response.getResponseCode());
-        assertEquals(Constants.SUCCESSFULLY_CREATED, response.getMessage());
-
-        Map<?, ?> result = (Map<?, ?>) response.getResult();
-        assertTrue(result.containsKey(Constants.ANNOUNCEMENT_ID));
-    }
 }

@@ -56,7 +56,8 @@ public class AnnouncementServiceImpl implements AnnouncementService {
   @Autowired
   private ObjectMapper objectMapper;
 
-  private String requiredJsonFilePath = "/EsFieldsmapping/announcementEsMapping.json";
+  @Value("${announcement.mapping.file-path}")
+  private String requiredJsonFilePath;
 
   @Autowired
   private RedisTemplate<String, SearchResult> redisTemplate;
@@ -89,7 +90,6 @@ public class AnnouncementServiceImpl implements AnnouncementService {
         jsonNodeEntity.setUpdatedOn(currentTime);
         jsonNodeEntity.setIsActive(true);
         AnnouncementEntity saveJsonEntity = announcementRepository.save(jsonNodeEntity);
-        ObjectMapper objectMapper = new ObjectMapper();
         ObjectNode jsonNode = objectMapper.createObjectNode();
         jsonNode.set(Constants.ANNOUNCEMENT_ID, new TextNode(saveJsonEntity.getAnnouncementId()));
         jsonNode.setAll((ObjectNode) saveJsonEntity.getData());
@@ -128,7 +128,10 @@ public class AnnouncementServiceImpl implements AnnouncementService {
       return response;
     } catch (Exception e) {
       logger.error("error while processing", e);
-      throw new RuntimeException(e);
+      createErrorResponse(response, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR,
+              Constants.FAILED_CONST);
+
+      return response;
     }
   }
 
@@ -187,6 +190,7 @@ public class AnnouncementServiceImpl implements AnnouncementService {
     response.setParams(new RespParam());
     response.getParams().setStatus(status);
     response.setResponseCode(httpStatus);
+    response.setMessage(errorMessage);
   }
   public void createSuccessResponse(CustomResponse response) {
     response.setParams(new RespParam());
@@ -211,7 +215,7 @@ public class AnnouncementServiceImpl implements AnnouncementService {
 
   @Override
   public CustomResponse updateAnnouncement(JsonNode announcementDetails) {
-    log.info("AnnouncementServiceImpl::read:inside the method");
+    log.info(Constants.ANNOUNCEMENT_SERVICE_IMPL_UPDATE_INSIDE_METHOD);
     CustomResponse response = new CustomResponse();
     if (announcementDetails.get(Constants.ANNOUNCEMENT_ID) == null) {
       throw new CustomException(Constants.ERROR,
@@ -226,8 +230,11 @@ public class AnnouncementServiceImpl implements AnnouncementService {
       AnnouncementEntity fetchedEntity = optSchemeDetails.get();
       JsonNode fetchedEntityData = fetchedEntity.getData();
       ((ObjectNode) announcementDetails).put(Constants.UPDATED_ON, String.valueOf(currentTime));
-      ((ObjectNode) announcementDetails).put(Constants.CREATED_ON, fetchedEntityData.get(Constants.CREATED_ON));
-      fetchedEntity.setData(announcementDetails);
+        ((ObjectNode) announcementDetails).set(
+                Constants.CREATED_ON,
+                fetchedEntityData.get(Constants.CREATED_ON)
+        );
+        fetchedEntity.setData(announcementDetails);
       fetchedEntity.setUpdatedOn(currentTime);
       announcementRepository.save(fetchedEntity);
       ObjectNode jsonNode = objectMapper.createObjectNode();
@@ -253,7 +260,7 @@ public class AnnouncementServiceImpl implements AnnouncementService {
 
   @Override
   public CustomResponse readAnnouncement(String id) {
-    log.info("AnnouncementServiceImpl::read:inside the method");
+    log.info(Constants.ANNOUNCEMENT_SERVICE_IMPL_UPDATE_INSIDE_METHOD);
     CustomResponse response = new CustomResponse();
     if (StringUtils.isEmpty(id)) {
       logger.error("AnnouncementServiceImpl::read:Id not found");
@@ -299,7 +306,7 @@ public class AnnouncementServiceImpl implements AnnouncementService {
 
   @Override
   public CustomResponse deleteAnnouncement(String id) {
-    log.info("AnnouncementServiceImpl::read:inside the method");
+    log.info(Constants.ANNOUNCEMENT_SERVICE_IMPL_UPDATE_INSIDE_METHOD);
     CustomResponse response = new CustomResponse();
     Optional<AnnouncementEntity> optSchemeDetails = announcementRepository.findById(
         id);

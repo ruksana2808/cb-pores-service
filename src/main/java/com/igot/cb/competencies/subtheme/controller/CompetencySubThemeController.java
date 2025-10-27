@@ -43,7 +43,7 @@ public class CompetencySubThemeController {
   }
 
   @PostMapping("/search")
-  public ResponseEntity<?> search(@RequestBody SearchCriteria searchCriteria) {
+  public ResponseEntity<CustomResponse> search(@RequestBody SearchCriteria searchCriteria) {
     CustomResponse response = competencySubThemeService.searchCompSubTheme(searchCriteria);
     return new ResponseEntity<>(response, response.getResponseCode());
   }
@@ -61,7 +61,7 @@ public class CompetencySubThemeController {
   }
 
   @GetMapping("/read/{id}")
-  public ResponseEntity<?> competencySubThemeRead(@PathVariable String id) {
+  public ResponseEntity<CustomResponse> competencySubThemeRead(@PathVariable String id) {
     CustomResponse response = competencySubThemeService.readCompSubTheme(id);
     return new ResponseEntity<>(response, response.getResponseCode());
   }

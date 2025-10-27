@@ -382,6 +382,7 @@ public class Constants {
     public static final String ACCESS_TOKEN_IS_EXPIRED = "Access token is expired";
     public static final String ACCESS_TOKEN_VALIDATION_FAILED = "Access token validation is failed";
     public static final String DESIGNATION_KEY = "Designation";
+    public static final String ANNOUNCEMENT_SERVICE_IMPL_UPDATE_INSIDE_METHOD = "AnnouncementServiceImpl::read:inside the method";
 
     private Constants() {
     }

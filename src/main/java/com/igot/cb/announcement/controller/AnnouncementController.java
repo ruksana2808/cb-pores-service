@@ -42,13 +42,13 @@ public class AnnouncementController {
   }
 
   @GetMapping("/v1/read/{id}")
-  public ResponseEntity<?> read(@PathVariable String id) {
+  public ResponseEntity<CustomResponse> read(@PathVariable String id) {
     CustomResponse response = announcementService.readAnnouncement(id);
     return new ResponseEntity<>(response, HttpStatus.OK);
   }
 
   @DeleteMapping("/v1/delete/{id}")
-  public ResponseEntity<?> delete(@PathVariable String id) {
+  public ResponseEntity<CustomResponse> delete(@PathVariable String id) {
     CustomResponse response = announcementService.deleteAnnouncement(id);
     return new ResponseEntity<>(response, HttpStatus.OK);
   }
