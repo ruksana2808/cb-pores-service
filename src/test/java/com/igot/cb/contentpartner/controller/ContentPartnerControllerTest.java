@@ -98,9 +98,10 @@ class ContentPartnerControllerTest {
 
         when(partnerService.createOrUpdate(contentPartnerDetails)).thenReturn(mockResponse);
 
-        ResponseEntity<?> responseEntity = contentPartnerController.update(contentPartnerDetails);
+        ResponseEntity<ApiResponse> responseEntity = contentPartnerController.update(contentPartnerDetails);
 
         assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
+        assertEquals(mockResponse, responseEntity.getBody());
     }
 
     /**
@@ -137,6 +138,7 @@ class ContentPartnerControllerTest {
         ResponseEntity<ApiResponse> responseEntity = contentPartnerController.create(contentPartnerDetails);
 
         assertEquals(HttpStatus.CREATED, responseEntity.getStatusCode());
+        assertEquals(mockResponse, responseEntity.getBody());
     }
 
     /**

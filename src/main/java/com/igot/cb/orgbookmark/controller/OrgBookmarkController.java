@@ -18,33 +18,33 @@ public class OrgBookmarkController {
     private OrgBookmarkService orgBookmarkService;
 
     @PostMapping("/v1/create")
-    public ResponseEntity<?> createOrgBookmark(@RequestBody JsonNode orgDetails,
+    public ResponseEntity<ApiResponse> createOrgBookmark(@RequestBody JsonNode orgDetails,
                                                @RequestHeader(Constants.X_AUTH_TOKEN) String userAuthToken) {
         ApiResponse response = orgBookmarkService.createOrgBookmark(orgDetails, userAuthToken);
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
     @PostMapping("/v1/update")
-    public ResponseEntity<?> updateOrgBookmark(@RequestBody JsonNode orgDetails,
+    public ResponseEntity<ApiResponse> updateOrgBookmark(@RequestBody JsonNode orgDetails,
                                                @RequestHeader(Constants.X_AUTH_TOKEN) String userAuthToken) {
         ApiResponse response = orgBookmarkService.updateOrgBookmark(orgDetails, userAuthToken);
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
     @GetMapping("/v1/read/{id}")
-    public ResponseEntity<?> readOrgBookmarkById(@PathVariable String id) {
+    public ResponseEntity<ApiResponse> readOrgBookmarkById(@PathVariable String id) {
         ApiResponse response = orgBookmarkService.readOrgBookmarkById(id);
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
     @PostMapping("/v1/search")
-    public ResponseEntity<?> search(@RequestBody SearchCriteria searchCriteria) {
+    public ResponseEntity<CustomResponse> search(@RequestBody SearchCriteria searchCriteria) {
         CustomResponse response = orgBookmarkService.search(searchCriteria);
         return new ResponseEntity<>(response, response.getResponseCode());
     }
 
     @DeleteMapping("/v1/delete/{id}")
-    public ResponseEntity<?> deleteOrgBookmarkById(@PathVariable String id,
+    public ResponseEntity<ApiResponse> deleteOrgBookmarkById(@PathVariable String id,
                                                    @RequestHeader(Constants.X_AUTH_TOKEN) String token) {
         ApiResponse response = orgBookmarkService.deleteOrgBookmarkById(id);
         return new ResponseEntity<>(response, response.getResponseCode());

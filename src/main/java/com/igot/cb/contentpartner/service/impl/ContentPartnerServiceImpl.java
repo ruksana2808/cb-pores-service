@@ -53,171 +53,246 @@ public class ContentPartnerServiceImpl implements ContentPartnerService {
     @Override
     public ApiResponse createOrUpdate(JsonNode partnerDetails) {
         log.info("ContentPartnerServiceImpl::createOrUpdate:inside");
-        ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_PARTNER_CREATE);
-        Timestamp currentTime = new Timestamp(System.currentTimeMillis());
+        final Timestamp now = new Timestamp(System.currentTimeMillis());
         try {
-            if (partnerDetails.get(Constants.ID) == null) {
-                payloadValidation.validatePayload(Constants.PAYLOAD_VALIDATION_FILE_CONTENT_PROVIDER, partnerDetails);
-                String partnerName = partnerDetails.path(Constants.CONTENT_PARTNER_NAME).asText();
-                String partnerCode = partnerDetails.path(Constants.PARTNERCODE).asText();
-                Optional<ContentPartnerEntity> optionalEntity = entityRepository.findByContentPartnerName(partnerName);
-                if (optionalEntity.isPresent()) {
-                    if (partnerCode != null && !partnerCode.isEmpty()) {
-                        if (entityRepository.findByPartnerCode(partnerCode).isPresent()) {
-                            response.getParams().setErrMsg(Constants.CONTENT_PARTNER_CODE_AND_NAME_ALREADY_PRESENT);
-                        }else{
-                            response.getParams().setErrMsg(Constants.CONTENT_PARTNER_NAME_ALREADY_PRESENT);
-                        }
-                    }
-                    response.getParams().setStatus(Constants.FAILED);
-                    response.setResponseCode(HttpStatus.BAD_REQUEST);
-                    return response;
-                }
-                if (partnerCode != null && !partnerCode.isEmpty()) {
-                    if (entityRepository.findByPartnerCode(partnerCode).isPresent()) {
-                        response.getParams().setErrMsg(Constants.CONTENT_PARTNER_CODE_ALREADY_PRESENT);
-                        response.getParams().setStatus(Constants.FAILED);
-                        response.setResponseCode(HttpStatus.BAD_REQUEST);
-                        return response;
-                    }
-                }
-                log.info("ContentPartnerServiceImpl::createOrUpdate:creating content partner provider");
-                String id = String.valueOf(UUID.randomUUID());
-                ((ObjectNode) partnerDetails).put(Constants.PARTNERCODE, partnerDetails.get("partnerCode"));
-                ((ObjectNode) partnerDetails).put(Constants.ID, id);
-                ((ObjectNode) partnerDetails).put(Constants.IS_ACTIVE, Constants.ACTIVE_STATUS);
-                ((ObjectNode) partnerDetails).put(Constants.TOTAL_COURSES_COUNT, 0);
-                ((ObjectNode) partnerDetails).put(Constants.DRAFT_COURSES_COUNT, 0);
-                ((ObjectNode) partnerDetails).put(Constants.LIVE_COURSES_COUNT, 0);
-                if (partnerDetails.path(Constants.IS_AUTHENTICATE).isMissingNode()) {
-                    ((ObjectNode) partnerDetails).put(Constants.IS_AUTHENTICATE, Constants.ACTIVE_STATUS_AUTHENTICATE);
-                }
-                if (partnerDetails.path(Constants.PROVIDER_TIPS).isMissingNode()) {
-                    ((ObjectNode) partnerDetails).put(Constants.PROVIDER_TIPS, ((ObjectNode) partnerDetails).arrayNode());
-                }
-                ((ObjectNode) partnerDetails).put(Constants.CREATED_ON, String.valueOf(currentTime));
-                ((ObjectNode) partnerDetails).put(Constants.UPDATED_ON, String.valueOf(currentTime));
-                ((ObjectNode) partnerDetails).put(Constants.DOCUMENT_UPLOADED_DATE, partnerDetails.path(Constants.DOCUMENT_UPLOADED_DATE).asText(""));
-                ContentPartnerEntity contentPartnerEntity = new ContentPartnerEntity();
-                contentPartnerEntity.setId(id);
-                contentPartnerEntity.setCreatedOn(currentTime);
-                contentPartnerEntity.setUpdatedOn(currentTime);
-                contentPartnerEntity.setIsActive(Constants.ACTIVE_STATUS);
-                contentPartnerEntity.setTrasformContentJson(partnerDetails.get(Constants.TRANSFORM_CONTENT_JSON));
-                contentPartnerEntity.setTransformProgressJson(partnerDetails.get(Constants.TRANSFORM_PROGRESS_JSON));
-                contentPartnerEntity.setCertificateTemplateUrl(partnerDetails.path(Constants.CERTIFICATE_TEMPLATE_URL).asText(" "));
-                contentPartnerEntity.setServiceRegistryDetails(partnerDetails.get(Constants.SERVICE_REGISTRY_DETAILS));
-                contentPartnerEntity.setContentFileValidation(partnerDetails.get(Constants.CONTENT_FILE_VALIDATION));
-                contentPartnerEntity.setTransformContentViaApi(partnerDetails.get(Constants.TRANSFORM_CONTENT_VIA_API));
-                contentPartnerEntity.setTransformProgressViaApi(partnerDetails.get(Constants.TRANSFORM_PROGRESS_VIA_API));
-                ObjectNode objectNode = (ObjectNode) partnerDetails;
-                objectNode.remove(Constants.TRANSFORM_CONTENT_JSON);
-                objectNode.remove(Constants.TRANSFORM_PROGRESS_JSON);
-                objectNode.remove(Constants.CERTIFICATE_TEMPLATE_URL);
-                objectNode.remove(Constants.SERVICE_REGISTRY_DETAILS);
-                objectNode.remove(Constants.CONTENT_FILE_VALIDATION);
-                objectNode.remove(Constants.TRANSFORM_CONTENT_VIA_API);
-                objectNode.remove(Constants.TRANSFORM_PROGRESS_VIA_API);
-                addSearchTags(objectNode);
-                contentPartnerEntity.setData(objectNode);
-                ContentPartnerEntity saveJsonEntity = entityRepository.save(contentPartnerEntity);
-                Map<String, Object> map = objectMapper.convertValue(saveJsonEntity.getData(), Map.class);
-                esUtilService.addDocument(Constants.CONTENT_PROVIDER_INDEX_NAME, Constants.INDEX_TYPE, id, map, cbServerProperties.getElasticContentJsonPath());
-                Map<String, Object> result = objectMapper.convertValue(saveJsonEntity, Map.class);
-                cacheService.putCache(saveJsonEntity.getId(), result);
-                if (!partnerDetails.path(Constants.PARTNERCODE).isMissingNode()) {
-                    log.info("during content partner create Deleting cache for partner code {}", partnerDetails.path(Constants.PARTNERCODE).asText());
-                    cacheService.deleteCache(partnerDetails.get(Constants.PARTNERCODE).asText());
-                }
-                log.info("Content partner created");
-                response.setResult(result);
-                response.setResponseCode(HttpStatus.OK);
+            if (isCreate(partnerDetails)) {
+                return handleCreate(partnerDetails, now);
             } else {
-                JsonNode data = partnerDetails.get(Constants.DATA);
-                payloadValidation.validatePayload(Constants.PAYLOAD_VALIDATION_FILE_CONTENT_PROVIDER, data);
-                String partnerName = partnerDetails.path(Constants.DATA).get(Constants.CONTENT_PARTNER_NAME).asText();
-                log.info("Updating content partner entity");
-                response = ProjectUtil.createDefaultResponse(Constants.API_PARTNER_UPDATE);
-                String existingId = partnerDetails.get("id").asText();
-                Optional<ContentPartnerEntity> content = entityRepository.findById(existingId);
-                if (content.isPresent()) {
-                    if (entityRepository.findByContentPartnerName(partnerName).filter(entity -> !entity.getId().equals(existingId)).isPresent()) {
-                        response.getParams().setErrMsg(Constants.CONTENT_PARTNER_NAME_ALREADY_PRESENT);
-                        response.getParams().setStatus(Constants.FAILED);
-                        response.setResponseCode(HttpStatus.BAD_REQUEST);
-                        return response;
-                    }
-                    ContentPartnerEntity jsonEntity = content.get();
-                    jsonEntity.setUpdatedOn(currentTime);
-                    jsonEntity.setIsActive(Constants.ACTIVE_STATUS);
-                    jsonEntity.setTrasformContentJson(partnerDetails.get(Constants.TRANSFORM_CONTENT_JSON));
-                    jsonEntity.setTransformProgressJson(partnerDetails.get(Constants.TRANSFORM_PROGRESS_JSON));
-                    jsonEntity.setCertificateTemplateUrl(partnerDetails.path(Constants.CERTIFICATE_TEMPLATE_URL).asText(" "));
-                    jsonEntity.setServiceRegistryDetails(partnerDetails.get(Constants.SERVICE_REGISTRY_DETAILS));
-                    jsonEntity.setContentFileValidation(partnerDetails.get(Constants.CONTENT_FILE_VALIDATION));
-                    jsonEntity.setTransformContentViaApi(partnerDetails.get(Constants.TRANSFORM_CONTENT_VIA_API));
-                    jsonEntity.setTransformProgressViaApi(partnerDetails.get(Constants.TRANSFORM_PROGRESS_VIA_API));
-                    ObjectNode objectNode = (ObjectNode) partnerDetails;
-                    objectNode.remove(Constants.TRANSFORM_CONTENT_JSON);
-                    objectNode.remove(Constants.TRANSFORM_PROGRESS_JSON);
-                    objectNode.remove(Constants.CERTIFICATE_TEMPLATE_URL);
-                    objectNode.remove(Constants.ID);
-                    objectNode.remove(Constants.CONTENT_FILE_VALIDATION);
-                    objectNode.remove(Constants.TRANSFORM_CONTENT_VIA_API);
-                    objectNode.remove(Constants.TRANSFORM_PROGRESS_VIA_API);
-                    ObjectNode dataNode = (ObjectNode) objectNode.remove(Constants.DATA);
-                    dataNode.put(Constants.CREATED_ON, String.valueOf(content.get().getCreatedOn()));
-                    dataNode.put(Constants.UPDATED_ON, String.valueOf(currentTime));
-                    dataNode.put(Constants.PARTNERCODE, jsonEntity.getData().get(Constants.PARTNERCODE));
-                    ((ObjectNode) partnerDetails).put(Constants.DOCUMENT_UPLOADED_DATE, partnerDetails.path(Constants.DOCUMENT_UPLOADED_DATE).asText(""));
-                    dataNode.put(Constants.IS_ACTIVE, Constants.ACTIVE_STATUS);
-                    if (dataNode.path(Constants.IS_AUTHENTICATE).isMissingNode()) {
-                        dataNode.put(Constants.IS_AUTHENTICATE, content.get().getData().get(Constants.IS_AUTHENTICATE));
-                    }
-                    if (dataNode.path(Constants.PROVIDER_TIPS).isMissingNode()) {
-                        (dataNode).put(Constants.PROVIDER_TIPS, ((ObjectNode) partnerDetails).arrayNode());
-                    }
-                    if (dataNode.path(Constants.TOTAL_COURSES_COUNT).isMissingNode()) {
-                        dataNode.put(Constants.TOTAL_COURSES_COUNT, content.get().getData().get(Constants.TOTAL_COURSES_COUNT));
-                    }
-                    if (dataNode.path(Constants.DRAFT_COURSES_COUNT).isMissingNode()) {
-                        dataNode.put(Constants.DRAFT_COURSES_COUNT, content.get().getData().get(Constants.DRAFT_COURSES_COUNT));
-                    }
-                    if (dataNode.path(Constants.LIVE_COURSES_COUNT).isMissingNode()) {
-                        dataNode.put(Constants.LIVE_COURSES_COUNT, content.get().getData().get(Constants.LIVE_COURSES_COUNT));
-                    }
-                    addSearchTags(dataNode);
-                    jsonEntity.setData(dataNode);
-                    ContentPartnerEntity updateJsonEntity = entityRepository.save(jsonEntity);
-                    if (!ObjectUtils.isEmpty(updateJsonEntity)) {
-                        Map<String, Object> jsonMap =
-                                objectMapper.convertValue(updateJsonEntity.getData(), new TypeReference<Map<String, Object>>() {
-                                });
-                        esUtilService.updateDocument(Constants.CONTENT_PROVIDER_INDEX_NAME, Constants.INDEX_TYPE, existingId, jsonMap, cbServerProperties.getElasticContentJsonPath());
-                        Map<String, Object> result = objectMapper.convertValue(updateJsonEntity, Map.class);
-                        cacheService.putCache(updateJsonEntity.getId(), result);
-                        if (!dataNode.path(Constants.PARTNERCODE).isMissingNode()) {
-                            log.info("deleting the content partner from cache");
-                            cacheService.deleteCache(dataNode.get(Constants.PARTNERCODE).asText());
-                        }
-                        log.info("updated the content partner");
-                        response.setResult(result);
-                        response.setResponseCode(HttpStatus.OK);
-                    }
-                } else {
-                    response.getParams().setErrMsg(Constants.DATA_NOT_PRESENT);
-                    response.getParams().setStatus(Constants.FAILED);
-                    response.setResponseCode(HttpStatus.BAD_REQUEST);
-                }
+                return handleUpdate(partnerDetails, now);
             }
-            return response;
         } catch (Exception e) {
-            response.getParams().setErrMsg(e.getMessage());
-            response.getParams().setStatus(Constants.FAILED);
-            response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);
-            return response;
+            return errorResponse(ProjectUtil.createDefaultResponse(Constants.API_PARTNER_CREATE), e.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
+    private boolean isCreate(JsonNode partnerDetails) {
+        return partnerDetails.get(Constants.ID) == null;
+    }
+
+    private ApiResponse handleCreate(JsonNode partnerDetails, Timestamp now) {
+        ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_PARTNER_CREATE);
+        payloadValidation.validatePayload(Constants.PAYLOAD_VALIDATION_FILE_CONTENT_PROVIDER, partnerDetails);
+        final String partnerName = partnerDetails.path(Constants.CONTENT_PARTNER_NAME).asText();
+        final String partnerCode = safeText(partnerDetails, Constants.PARTNERCODE);
+        Optional<String> duplicateErr = checkDuplicatesOnCreate(partnerName, partnerCode);
+        if (duplicateErr.isPresent()) {
+            return errorResponse(response, duplicateErr.get(), HttpStatus.BAD_REQUEST);
+        }
+        final String id = UUID.randomUUID().toString();
+        ObjectNode dataNode = prepareCreateDataNode((ObjectNode) partnerDetails, id, now);
+        ContentPartnerEntity entity = buildEntityFromCreate(partnerDetails, id, now);
+        ContentPartnerEntity saved = entityRepository.save(entity);
+        afterPersistCreate(saved, id);
+        Map<String, Object> result = objectMapper.convertValue(saved, Map.class);
+        response.setResult(result);
+        response.setResponseCode(HttpStatus.OK);
+        return response;
+    }
+
+    private Optional<String> checkDuplicatesOnCreate(String partnerName, String partnerCode) {
+        Optional<ContentPartnerEntity> nameHit = entityRepository.findByContentPartnerName(partnerName);
+        if (nameHit.isPresent()) {
+            if (isNonEmpty(partnerCode) && entityRepository.findByPartnerCode(partnerCode).isPresent()) {
+                return Optional.of(Constants.CONTENT_PARTNER_CODE_AND_NAME_ALREADY_PRESENT);
+            }
+            return Optional.of(Constants.CONTENT_PARTNER_NAME_ALREADY_PRESENT);
+        }
+        if (isNonEmpty(partnerCode) && entityRepository.findByPartnerCode(partnerCode).isPresent()) {
+            return Optional.of(Constants.CONTENT_PARTNER_CODE_ALREADY_PRESENT);
+        }
+        return Optional.empty();
+    }
+
+    private ObjectNode prepareCreateDataNode(ObjectNode partnerDetails, String id, Timestamp now) {
+        // ensure partnerCode field exists and base fields are set
+        partnerDetails.put(Constants.PARTNERCODE, partnerDetails.path("partnerCode").asText(""));
+        partnerDetails.put(Constants.ID, id);
+        partnerDetails.put(Constants.IS_ACTIVE, Constants.ACTIVE_STATUS);
+        partnerDetails.put(Constants.TOTAL_COURSES_COUNT, 0);
+        partnerDetails.put(Constants.DRAFT_COURSES_COUNT, 0);
+        partnerDetails.put(Constants.LIVE_COURSES_COUNT, 0);
+        if (partnerDetails.path(Constants.IS_AUTHENTICATE).isMissingNode()) {
+            partnerDetails.put(Constants.IS_AUTHENTICATE, Constants.ACTIVE_STATUS_AUTHENTICATE);
+        }
+        if (partnerDetails.path(Constants.PROVIDER_TIPS).isMissingNode()) {
+            partnerDetails.set(Constants.PROVIDER_TIPS, partnerDetails.arrayNode());
+        }
+        partnerDetails.put(Constants.CREATED_ON, String.valueOf(now));
+        partnerDetails.put(Constants.UPDATED_ON, String.valueOf(now));
+        partnerDetails.put(Constants.DOCUMENT_UPLOADED_DATE, partnerDetails.path(Constants.DOCUMENT_UPLOADED_DATE).asText(""));
+        addSearchTags(partnerDetails);
+        return partnerDetails;
+    }
+
+    private ContentPartnerEntity buildEntityFromCreate(JsonNode partnerDetails, String id, Timestamp now) {
+        ContentPartnerEntity e = new ContentPartnerEntity();
+        e.setId(id);
+        e.setCreatedOn(now);
+        e.setUpdatedOn(now);
+        e.setIsActive(Constants.ACTIVE_STATUS);
+
+        // capture heavy fields into columns
+        e.setTrasformContentJson(partnerDetails.get(Constants.TRANSFORM_CONTENT_JSON));
+        e.setTransformProgressJson(partnerDetails.get(Constants.TRANSFORM_PROGRESS_JSON));
+        e.setCertificateTemplateUrl(partnerDetails.path(Constants.CERTIFICATE_TEMPLATE_URL).asText(" "));
+        e.setServiceRegistryDetails(partnerDetails.get(Constants.SERVICE_REGISTRY_DETAILS));
+        e.setContentFileValidation(partnerDetails.get(Constants.CONTENT_FILE_VALIDATION));
+        e.setTransformContentViaApi(partnerDetails.get(Constants.TRANSFORM_CONTENT_VIA_API));
+        e.setTransformProgressViaApi(partnerDetails.get(Constants.TRANSFORM_PROGRESS_VIA_API));
+        // remove the heavy fields from data JSON
+        ObjectNode data = ((ObjectNode) partnerDetails).deepCopy();
+        stripHeavyFields(data, true);
+        e.setData(data);
+        return e;
+    }
+
+    private void afterPersistCreate(ContentPartnerEntity saved, String id) {
+        Map<String, Object> map = objectMapper.convertValue(saved.getData(), Map.class);
+        esUtilService.addDocument(
+                Constants.CONTENT_PROVIDER_INDEX_NAME, Constants.INDEX_TYPE, id, map, cbServerProperties.getElasticContentJsonPath());
+
+        Map<String, Object> result = objectMapper.convertValue(saved, Map.class);
+        cacheService.putCache(saved.getId(), result);
+
+        JsonNode codeNode = saved.getData().path(Constants.PARTNERCODE);
+        if (!codeNode.isMissingNode()) {
+            log.info("during content partner create Deleting cache for partner code {}", codeNode.asText());
+            cacheService.deleteCache(codeNode.asText());
+        }
+        log.info("Content partner created");
+    }
+
+    private ApiResponse handleUpdate(JsonNode partnerDetails, Timestamp now) {
+        ApiResponse response = ProjectUtil.createDefaultResponse(Constants.API_PARTNER_UPDATE);
+
+        JsonNode data = partnerDetails.get(Constants.DATA);
+        payloadValidation.validatePayload(Constants.PAYLOAD_VALIDATION_FILE_CONTENT_PROVIDER, data);
+
+        final String existingId = partnerDetails.path(Constants.ID).asText();
+        Optional<ContentPartnerEntity> existingOpt = entityRepository.findById(existingId);
+        if (existingOpt.isEmpty()) {
+            return errorResponse(response, Constants.DATA_NOT_PRESENT, HttpStatus.BAD_REQUEST);
+        }
+
+        String partnerName = partnerDetails.path(Constants.DATA).path(Constants.CONTENT_PARTNER_NAME).asText();
+        if (isDuplicateNameForAnother(partnerName, existingId)) {
+            return errorResponse(response, Constants.CONTENT_PARTNER_NAME_ALREADY_PRESENT, HttpStatus.BAD_REQUEST);
+        }
+
+        ContentPartnerEntity entity = existingOpt.get();
+        applyUpdateColumns(entity, partnerDetails, now);
+
+        ObjectNode dataNode = extractUpdateData((ObjectNode) partnerDetails, entity, now);
+        addSearchTags(dataNode);
+        entity.setData(dataNode);
+
+        ContentPartnerEntity updated = entityRepository.save(entity);
+        if (ObjectUtils.isEmpty(updated)) {
+            // nothing saved; return as-is with 200? keep consistent with original—no special handling
+            return response;
+        }
+
+        afterPersistUpdate(updated, existingId);
+
+        Map<String, Object> result = objectMapper.convertValue(updated, Map.class);
+        response.setResult(result);
+        response.setResponseCode(HttpStatus.OK);
+        return response;
+    }
+
+    private boolean isDuplicateNameForAnother(String partnerName, String selfId) {
+        return entityRepository.findByContentPartnerName(partnerName)
+                .filter(e -> !e.getId().equals(selfId))
+                .isPresent();
+    }
+
+    private void applyUpdateColumns(ContentPartnerEntity entity, JsonNode partnerDetails, Timestamp now) {
+        entity.setUpdatedOn(now);
+        entity.setIsActive(Constants.ACTIVE_STATUS);
+        entity.setTrasformContentJson(partnerDetails.get(Constants.TRANSFORM_CONTENT_JSON));
+        entity.setTransformProgressJson(partnerDetails.get(Constants.TRANSFORM_PROGRESS_JSON));
+        entity.setCertificateTemplateUrl(partnerDetails.path(Constants.CERTIFICATE_TEMPLATE_URL).asText(" "));
+        entity.setServiceRegistryDetails(partnerDetails.get(Constants.SERVICE_REGISTRY_DETAILS));
+        entity.setContentFileValidation(partnerDetails.get(Constants.CONTENT_FILE_VALIDATION));
+        entity.setTransformContentViaApi(partnerDetails.get(Constants.TRANSFORM_CONTENT_VIA_API));
+        entity.setTransformProgressViaApi(partnerDetails.get(Constants.TRANSFORM_PROGRESS_VIA_API));
+    }
+
+    private ObjectNode extractUpdateData(ObjectNode partnerDetails, ContentPartnerEntity existing, Timestamp now) {
+        ObjectNode rootCopy = partnerDetails.deepCopy();
+        stripHeavyFields(rootCopy, false);
+        ObjectNode dataNode = (ObjectNode) rootCopy.remove(Constants.DATA);
+        dataNode.put(Constants.CREATED_ON, String.valueOf(existing.getCreatedOn()));
+        dataNode.put(Constants.UPDATED_ON, String.valueOf(now));
+        dataNode.set(Constants.PARTNERCODE, existing.getData().get(Constants.PARTNERCODE));
+        rootCopy.put(Constants.DOCUMENT_UPLOADED_DATE, rootCopy.path(Constants.DOCUMENT_UPLOADED_DATE).asText(""));
+        dataNode.put(Constants.IS_ACTIVE, Constants.ACTIVE_STATUS);
+        if (dataNode.path(Constants.IS_AUTHENTICATE).isMissingNode()) {
+            dataNode.set(Constants.IS_AUTHENTICATE, existing.getData().get(Constants.IS_AUTHENTICATE));
+        }
+        if (dataNode.path(Constants.PROVIDER_TIPS).isMissingNode()) {
+            dataNode.set(Constants.PROVIDER_TIPS, rootCopy.arrayNode());
+        }
+        copyIfMissing(dataNode, existing.getData(), Constants.TOTAL_COURSES_COUNT);
+        copyIfMissing(dataNode, existing.getData(), Constants.DRAFT_COURSES_COUNT);
+        copyIfMissing(dataNode, existing.getData(), Constants.LIVE_COURSES_COUNT);
+
+        return dataNode;
+    }
+
+    private void afterPersistUpdate(ContentPartnerEntity updated, String id) {
+        Map<String, Object> jsonMap =
+                objectMapper.convertValue(updated.getData(), new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+        esUtilService.updateDocument(
+                Constants.CONTENT_PROVIDER_INDEX_NAME, Constants.INDEX_TYPE, id, jsonMap, cbServerProperties.getElasticContentJsonPath());
+
+        Map<String, Object> result = objectMapper.convertValue(updated, Map.class);
+        cacheService.putCache(updated.getId(), result);
+
+        JsonNode codeNode = updated.getData().path(Constants.PARTNERCODE);
+        if (!codeNode.isMissingNode()) {
+            log.info("deleting the content partner from cache");
+            cacheService.deleteCache(codeNode.asText());
+        }
+        log.info("updated the content partner");
+    }
+
+    private void stripHeavyFields(ObjectNode node, boolean alsoRemoveId) {
+        // fields stored in dedicated columns, not in the JSON blob
+        node.remove(Constants.TRANSFORM_CONTENT_JSON);
+        node.remove(Constants.TRANSFORM_PROGRESS_JSON);
+        node.remove(Constants.CERTIFICATE_TEMPLATE_URL);
+        node.remove(Constants.CONTENT_FILE_VALIDATION);
+        node.remove(Constants.TRANSFORM_CONTENT_VIA_API);
+        node.remove(Constants.TRANSFORM_PROGRESS_VIA_API);
+        node.remove(Constants.SERVICE_REGISTRY_DETAILS);
+        if (!alsoRemoveId) {
+            node.remove(Constants.ID); // on update flow we explicitly drop id from data
+        }
+    }
+
+    private boolean isNonEmpty(String s) {
+        return s != null && !s.isEmpty();
+    }
+
+    private String safeText(JsonNode node, String field) {
+        return node.path(field).asText("");
+    }
+
+    private void copyIfMissing(ObjectNode target, JsonNode source, String field) {
+        if (target.path(field).isMissingNode()) {
+            target.set(field, source.get(field));
+        }
+    }
+
+    private ApiResponse errorResponse(ApiResponse base, String msg, HttpStatus status) {
+        base.getParams().setErrMsg(msg);
+        base.getParams().setStatus(Constants.FAILED);
+        base.setResponseCode(status);
+        return base;
+    }
+
 
     private JsonNode addSearchTags(JsonNode formattedData) {
         List<String> searchTags = new ArrayList<>();
@@ -242,8 +317,7 @@ public class ContentPartnerServiceImpl implements ContentPartnerService {
             if (StringUtils.isNotEmpty(cachedJson)) {
                 log.info("Record coming from redis cache");
                 response.setResponseCode(HttpStatus.OK);
-                response.setResult(objectMapper.readValue(cachedJson, new TypeReference<Map>() {
-                }));
+                response.setResult(objectMapper.readValue(cachedJson, new TypeReference<Map<String, Object>>() {}));
             } else {
                 Optional<ContentPartnerEntity> entityOptional = entityRepository.findByIdAndIsActive(id, true);
                 if (entityOptional.isPresent()) {
@@ -341,7 +415,7 @@ public class ContentPartnerServiceImpl implements ContentPartnerService {
             if (StringUtils.isNotEmpty(cachedJson)) {
                 log.info("Record coming from redis cache");
                 response.setResponseCode(HttpStatus.OK);
-                response.setResult(objectMapper.readValue(cachedJson, new TypeReference<Map>() {}));
+                response.setResult(objectMapper.readValue(cachedJson, new TypeReference<Map<String, Object>>() {}));
             } else {
                 Optional<ContentPartnerEntity> entityOptional = entityRepository.findByPartnerCode(partnercode);
                 if (entityOptional.isPresent()) {

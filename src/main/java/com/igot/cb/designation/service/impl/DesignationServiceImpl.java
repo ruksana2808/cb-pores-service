@@ -479,7 +479,7 @@ public class DesignationServiceImpl implements DesignationService {
         return response;
       }
     } catch (Exception e) {
-      log.error("Error while processing file: {}", e.getMessage());
+      log.error(Constants.ERROR_WHILE_PROCESSING_FILE, e.getMessage());
       throw new RuntimeException(e.getMessage());
     }
   }
@@ -668,7 +668,7 @@ public class DesignationServiceImpl implements DesignationService {
         throw new RuntimeException("Unsupported file type: " + fileName);
       }
     } catch (IOException e) {
-      log.error("Error while processing file: {}", e.getMessage());
+      log.error(Constants.ERROR_WHILE_PROCESSING_FILE, e.getMessage());
       throw new RuntimeException(e.getMessage());
     }
   }
@@ -698,7 +698,7 @@ public class DesignationServiceImpl implements DesignationService {
                   && DateUtil.isCellDateFormatted(valueCell)) {
                 // Handle date format
                 Date date = valueCell.getDateCellValue();
-                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+                SimpleDateFormat dateFormat = new SimpleDateFormat(Constants.DATE_FORMAT);
                 cellValue = dateFormat.format(date);
               } else {
                 cellValue = formatter.formatCellValue(valueCell).replace("\n", ",").trim();
@@ -738,7 +738,7 @@ public class DesignationServiceImpl implements DesignationService {
           if (cellValue != null && !cellValue.trim().isEmpty()) {
             // Handle date format (assuming date is in a specific format)
             if (isDate(cellValue)) {
-              SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+              SimpleDateFormat dateFormat = new SimpleDateFormat(Constants.DATE_FORMAT);
               cellValue = dateFormat.format(parseDate(cellValue));
             } else {
               cellValue = cellValue.replace("\n", ",").trim();
@@ -772,7 +772,7 @@ public class DesignationServiceImpl implements DesignationService {
 
   private Date parseDate(String value) throws Exception {
     // Customize this date parsing logic based on the expected date format in your CSV
-    SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+    SimpleDateFormat dateFormat = new SimpleDateFormat(Constants.DATE_FORMAT);
     return dateFormat.parse(value);
   }
   public ApiResponse readTerm(String Id, String framework, String category) {
@@ -893,7 +893,7 @@ public class DesignationServiceImpl implements DesignationService {
         }
       }
     } catch (Exception e) {
-      log.error("Error while processing file: {}", e.getMessage());
+      log.error(Constants.ERROR_WHILE_PROCESSING_FILE, e.getMessage());
       throw new RuntimeException(e.getMessage());
     }
     return response;

@@ -294,7 +294,7 @@ class CompetencyThemeServiceImplTest {
         HttpStatus httpStatus = HttpStatus.BAD_REQUEST;
         String status = "FAILED";
 
-        service.createErrorResponse(response, errorMessage, httpStatus, status);
+        service.createErrorResponse(response, httpStatus, status);
 
         assertNotNull(response.getParams());
         assertEquals(status, response.getParams().getStatus());
@@ -313,7 +313,7 @@ class CompetencyThemeServiceImplTest {
         HttpStatus httpStatus = HttpStatus.BAD_REQUEST;
         String status = "FAILED";
 
-        service.createErrorResponse(response, errorMessage, httpStatus, status);
+        service.createErrorResponse(response, httpStatus, status);
 
         assertNotNull(response.getParams());
         assertEquals(status, response.getParams().getStatus());

@@ -52,7 +52,7 @@ public class DesignationController {
   }
 
   @GetMapping("/read/{id}")
-  public ResponseEntity<?> playListRead(@PathVariable String id) {
+  public ResponseEntity<CustomResponse> playListRead(@PathVariable String id) {
     CustomResponse response = designationService.readDesignation(id);
     return new ResponseEntity<>(response, response.getResponseCode());
   }
@@ -78,7 +78,7 @@ public class DesignationController {
   }
 
   @PostMapping("/search")
-  public ResponseEntity<?> search(@RequestBody SearchCriteria searchCriteria) {
+  public ResponseEntity<CustomResponse> search(@RequestBody SearchCriteria searchCriteria) {
     CustomResponse response = designationService.searchDesignation(searchCriteria);
     return new ResponseEntity<>(response, response.getResponseCode());
   }

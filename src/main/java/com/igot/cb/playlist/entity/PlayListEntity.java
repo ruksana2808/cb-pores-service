@@ -34,7 +34,7 @@ public class PlayListEntity implements Serializable {
 
   @Type(JsonType.class)
   @Column(columnDefinition = "jsonb")
-  private JsonNode data;
+  private transient JsonNode data;
 
   private Timestamp createdOn;
 

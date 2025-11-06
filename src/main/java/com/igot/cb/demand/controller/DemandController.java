@@ -25,12 +25,12 @@ public class DemandController {
   }
 
   @GetMapping("/read/{id}")
-  public ResponseEntity<?> read(@PathVariable String id) {
+  public ResponseEntity<CustomResponse> read(@PathVariable String id) {
     CustomResponse response = demandService.readDemand(id);
     return new ResponseEntity<>(response, HttpStatus.OK);
   }
   @PostMapping("/search")
-  public ResponseEntity<?> search(@RequestBody SearchCriteria searchCriteria) {
+  public ResponseEntity<CustomResponse> search(@RequestBody SearchCriteria searchCriteria) {
     CustomResponse response = demandService.searchDemand(searchCriteria);
     return new ResponseEntity<>(response, response.getResponseCode());
   }

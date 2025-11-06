@@ -31,7 +31,7 @@ public class InterestController {
   }
 
   @PostMapping("/v1/search")
-  public ResponseEntity<?> search(@RequestBody SearchCriteria searchCriteria) {
+  public ResponseEntity<CustomResponse> search(@RequestBody SearchCriteria searchCriteria) {
     CustomResponse response = interestService.searchDemand(searchCriteria);
     return new ResponseEntity<>(response, response.getResponseCode());
   }
@@ -43,7 +43,7 @@ public class InterestController {
   }
 
   @GetMapping("/v1/read/{id}")
-  public ResponseEntity<?> read(@PathVariable String id) {
+  public ResponseEntity<CustomResponse> read(@PathVariable String id) {
     CustomResponse response = interestService.read(id);
     return new ResponseEntity<>(response, HttpStatus.OK);
   }

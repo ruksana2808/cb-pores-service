@@ -281,7 +281,7 @@ class NotificationConsumerTest {
         doReturn(Collections.singletonList("owner1email@domain.com")).when(spyConsumer).fetchEmailFromUserId(anyList());
 
         Map<String, Object> mailDetails = new HashMap<>();
-        ReflectionTestUtils.invokeMethod(spyConsumer, "handleSpvRequest", Constants.ASSIGNED, request, "MDO", mailDetails);
+        ReflectionTestUtils.invokeMethod(spyConsumer, "handleSpvRequest", Constants.ASSIGNED, request, mailDetails);
 
         assertTrue(mailDetails.containsKey(Constants.EMAIL_ID_LIST));
         assertTrue(mailDetails.containsKey(Constants.SUB));
@@ -300,7 +300,7 @@ class NotificationConsumerTest {
         doReturn(Collections.singletonList("owner1email@domain.com")).when(spyConsumer).fetchEmailFromUserId(anyList());
 
         Map<String, Object> mailDetails = new HashMap<>();
-        ReflectionTestUtils.invokeMethod(spyConsumer, "handleSpvRequest", Constants.INVALID, request, "MDO", mailDetails);
+        ReflectionTestUtils.invokeMethod(spyConsumer, "handleSpvRequest", Constants.INVALID, request, mailDetails);
 
         assertTrue(mailDetails.containsKey(Constants.EMAIL_ID_LIST));
         assertTrue(mailDetails.containsKey(Constants.SUB));

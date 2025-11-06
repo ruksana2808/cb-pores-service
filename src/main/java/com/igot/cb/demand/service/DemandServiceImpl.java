@@ -48,6 +48,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -190,8 +191,6 @@ public class DemandServiceImpl implements DemandService {
             jsonNodeEntity.setUpdatedOn(currentTime);
 
             DemandEntity saveJsonEntity = demandRepository.save(jsonNodeEntity);
-
-            ObjectMapper objectMapper = new ObjectMapper();
             ObjectNode jsonNode = objectMapper.createObjectNode();
             jsonNode.set(Constants.DEMAND_ID, new TextNode(saveJsonEntity.getDemandId()));
             if (!saveJsonEntity.getData().isNull()) {
@@ -207,7 +206,7 @@ public class DemandServiceImpl implements DemandService {
                         .add(searchTagsArray);
                 }
             } else {
-                logger.error("Demand Data not Found with this ID");
+                logger.error(Constants.DEMAND_DATA_NOT_FOUND);
                 throw new CustomException(Constants.ERROR, Constants.INVALID_DATA,
                     HttpStatus.NOT_FOUND);
             }
@@ -298,7 +297,7 @@ public class DemandServiceImpl implements DemandService {
         }
         String searchString = searchCriteria.getSearchString();
         if (searchString != null && searchString.length() < 2) {
-            createErrorResponse(response, "Minimum 3 characters are required to search", HttpStatus.BAD_REQUEST, Constants.FAILED_CONST);
+            createErrorResponse(response,  HttpStatus.BAD_REQUEST, Constants.FAILED_CONST);
             return response;
         }
         if (searchString != null && searchString.length() > 2) {
@@ -310,7 +309,7 @@ public class DemandServiceImpl implements DemandService {
             createSuccessResponse(response);
             return response;
         } catch (Exception e) {
-            createErrorResponse(response, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, Constants.FAILED_CONST);
+            createErrorResponse(response, HttpStatus.INTERNAL_SERVER_ERROR, Constants.FAILED_CONST);
             redisTemplate.opsForValue().set(generateRedisJwtTokenKey(searchCriteria), searchResult, searchResultRedisTtl, TimeUnit.SECONDS);
             return response;
         }
@@ -345,11 +344,10 @@ public class DemandServiceImpl implements DemandService {
                         josnEntity.setData(data);
                         josnEntity.setDemandId(id);
                         josnEntity.setUpdatedOn(currentTime);
-                        DemandEntity updateJsonEntity = demandRepository.save(josnEntity);
+                        demandRepository.save(josnEntity);
                         Map<String, Object> map = objectMapper.convertValue(data, Map.class);
                         esUtilService.addDocument(Constants.INDEX_NAME, Constants.INDEX_TYPE, id, map, cbServerProperties.getElasticDemandJsonPath());
                         cacheService.putCache(id, data);
-
                         logger.debug("Demand details deleted successfully");
                         return Constants.DELETED_SUCCESSFULLY;
                     } else log.info("demand is already inactive.");
@@ -403,7 +401,8 @@ public class DemandServiceImpl implements DemandService {
                     throw new CustomException(Constants.ERROR, Constants.CANNOT_UPDATE_INACTIVE_DEMAND, HttpStatus.BAD_REQUEST);
                 }
                 if (!statusTransitionConfig.isValidTransition(requestType, currentStatus, newStatus)) {
-                    logger.error("Invalid Status transition", newStatus);
+                    logger.error("Invalid status transition. RequestType: {}, CurrentStatus: {}, NewStatus: {}",
+                            requestType, currentStatus, newStatus);
                     throw new CustomException(Constants.ERROR, Constants.INVALID_STATUS_TRANSITION, HttpStatus.BAD_REQUEST);
                 }
                 // Update the status
@@ -417,8 +416,6 @@ public class DemandServiceImpl implements DemandService {
                 demandDbData.setUpdatedOn(currentTime);
 
                 DemandEntity saveJsonEntity = demandRepository.save(demandDbData);
-
-                ObjectMapper objectMapper = new ObjectMapper();
                 ObjectNode jsonNode = objectMapper.createObjectNode();
                 jsonNode.set(Constants.DEMAND_ID, new TextNode(saveJsonEntity.getDemandId()));
                 if (!saveJsonEntity.getData().isNull()) {
@@ -434,7 +431,7 @@ public class DemandServiceImpl implements DemandService {
                             .add(searchTagsArray);
                     }
                 } else {
-                    logger.error("Demand Data not Found with this ID");
+                    logger.error(Constants.DEMAND_DATA_NOT_FOUND);
                     throw new CustomException(Constants.ERROR, Constants.INVALID_DATA,
                         HttpStatus.NOT_FOUND);
                 }
@@ -457,12 +454,12 @@ public class DemandServiceImpl implements DemandService {
                 response.setResult(map);
                 response.setResponseCode(HttpStatus.OK);
             } else {
-                logger.error("Demand Data not Found with this ID");
+                logger.error(Constants.DEMAND_DATA_NOT_FOUND);
                 throw new CustomException(Constants.ERROR, Constants.INVALID_ID, HttpStatus.NOT_FOUND);
             }
         } catch (Exception e) {
-            logger.error("Error occurred while updating demand status", e);
-            throw new CustomException("Error occurred while updating demand status", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new CustomException("Error occurred while updating demand status", e.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
         }
         return response;
     }
@@ -479,11 +476,12 @@ public class DemandServiceImpl implements DemandService {
                 for (ValidationMessage message : validationMessages) {
                     errorMessage.append(message.getMessage()).append("\n");
                 }
-                logger.error("Validation Error", errorMessage.toString());
+                if (logger.isErrorEnabled()) {
+                    logger.error("Validation Error: {}", errorMessage);
+                }
                 throw new CustomException("Validation Error", errorMessage.toString(), HttpStatus.BAD_REQUEST);
             }
         } catch (Exception e) {
-            logger.error("Failed to validate payload", e);
             throw new CustomException("Failed to validate payload", e.getMessage(), HttpStatus.BAD_REQUEST);
         }
     }
@@ -545,13 +543,12 @@ public class DemandServiceImpl implements DemandService {
             int maxRandomValue = (int) Math.pow(10, randomPartLength);
             int randomNumber = RANDOM.nextInt(maxRandomValue);
             id = String.format("%05d%" + String.format("0%dd", randomPartLength), secondsInDay, randomNumber);
-
             idExists = demandRepository.existsById(id);
             log.info("DemandService::generateUniqueDemandId: generated id={} exists={}", id, idExists);
             attempts++;
         } while (idExists && attempts < MAX_ATTEMPTS);
         if (idExists) {
-            throw new RuntimeException("Unable to generate a unique ID after " + MAX_ATTEMPTS + " attempts");
+            throw new CustomException("Unable to generate a unique ID after " + MAX_ATTEMPTS + " attempts", "", HttpStatus.INTERNAL_SERVER_ERROR);
         }
         return id;
     }
@@ -562,9 +559,8 @@ public class DemandServiceImpl implements DemandService {
         response.setResponseCode(HttpStatus.OK);
     }
 
-    public void createErrorResponse(CustomResponse response, String errorMessage, HttpStatus httpStatus, String status) {
+    public void createErrorResponse(CustomResponse response, HttpStatus httpStatus, String status) {
         response.setParams(new RespParam());
-        //response.getParams().setErrorMsg(errorMessage);
         response.getParams().setStatus(status);
         response.setResponseCode(httpStatus);
     }
@@ -577,7 +573,12 @@ public class DemandServiceImpl implements DemandService {
                         header);
         Map<String, Object> result = (Map<String, Object>) readData.get(Constants.RESULT);
         Map<String, Object> responseMap = (Map<String, Object>) result.get(Constants.RESPONSE);
-        List roles = (List) responseMap.get(Constants.ROLES);
+        List<String> roles = Optional.ofNullable(responseMap.get(Constants.ROLES))
+                .filter(List.class::isInstance)
+                .map(list -> ((List<?>) list).stream()
+                        .map(Object::toString)
+                        .collect(Collectors.toList()))
+                .orElse(Collections.emptyList());
 
         if (requiredRole != null && roles.contains(requiredRole)) {
             return true;

@@ -2,6 +2,7 @@ package com.igot.cb.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.igot.cb.demand.service.DemandServiceImpl;
+import com.igot.cb.pores.exceptions.CustomException;
 import com.igot.cb.pores.util.CbServerProperties;
 import com.igot.cb.pores.util.Constants;
 import com.igot.cb.transactional.cassandrautils.CassandraOperation;
@@ -136,16 +137,16 @@ public class NotificationConsumer {
 
             // Additional notifications for SPV requests
             if (isSpvRequest) {
-                handleSpvRequest(status, request, mdoName, mailNotificationDetails);
+                handleSpvRequest(status, request, mailNotificationDetails);
             }
-            logger.info(String.format("Completed request for content. Time taken: %d ms", System.currentTimeMillis() - startTime));
+            logger.info("Completed request for content. Time taken: {} ms", System.currentTimeMillis() - startTime);
         } catch (Exception e) {
             logger.error("Exception occurred while sending email: " + e.getMessage(), e);
         }
     }
 
     private String constructEmailTemplate(String templateName, Map<String, Object> params) {
-        String replacedHTML = new String();
+        String replacedHTML = "";
         try {
             Map<String, Object> propertyMap = new HashMap<>();
             propertyMap.put(Constants.NAME, templateName);
@@ -221,9 +222,13 @@ public class NotificationConsumer {
         StringBuilder builder = new StringBuilder();
         builder.append(configuration.getNotifyServiceHost()).append(urlPath);
         try {
-            logger.info(mapper.writeValueAsString(request));
+            if (logger.isInfoEnabled()) {
+                logger.info(mapper.writeValueAsString(request));
+            }
             Map<String, Object> response = requestHandlerService.fetchResultUsingPost(builder.toString(), request, null);
-            logger.debug("The email notification is successfully sent, response is: " + response);
+            if (logger.isDebugEnabled()) {
+                logger.debug("The email notification is successfully sent, response is: {}", response);
+            }
         } catch (Exception e) {
             logger.error("Exception while posting the data in notification service: ", e);
         }
@@ -260,22 +265,30 @@ public class NotificationConsumer {
                     String rootOrgId = (String) content.get(Constants.ROOT_ORG_ID);
                     HashMap<String, Object> profileDetails = (HashMap<String, Object>) content
                             .get(Constants.PROFILE_DETAILS);
-                    if (!org.springframework.util.CollectionUtils.isEmpty(profileDetails)) {
-                        HashMap<String, Object> personalDetails = (HashMap<String, Object>) profileDetails
-                                .get(Constants.PERSONAL_DETAILS);
-                        if (!org.springframework.util.CollectionUtils.isEmpty(personalDetails)
-                                && personalDetails.get(Constants.PRIMARY_EMAIL) != null) {
-                            if (rootOrgIds.contains(rootOrgId))
-                                providerIdEmails.add((String) personalDetails.get(Constants.PRIMARY_EMAIL));
+                    if (!CollectionUtils.isEmpty(profileDetails)) {
+                        HashMap<String, Object> personalDetails =
+                                (HashMap<String, Object>) profileDetails.get(Constants.PERSONAL_DETAILS);
+
+                        if (!CollectionUtils.isEmpty(personalDetails)
+                                && personalDetails.get(Constants.PRIMARY_EMAIL) != null
+                                && rootOrgIds.contains(rootOrgId)) {
+
+                            providerIdEmails.add((String) personalDetails.get(Constants.PRIMARY_EMAIL));
                         }
                     }
                 }
             }
         }
         if (org.springframework.util.CollectionUtils.isEmpty(providerIdEmails)) {
-            throw new Exception("Failed to find CBP Admin for OrgIds: " + rootOrgIds);
+            throw new CustomException(
+                    Constants.ERROR,
+                    "Failed to find CBP Admin for OrgIds: " + rootOrgIds,
+                    HttpStatus.BAD_REQUEST
+            );
         }
-        logger.info("CBP Admin emails fetched successfully: " + providerIdEmails);
+        if (logger.isInfoEnabled()) {
+            logger.info("CBP Admin emails fetched successfully: {}", providerIdEmails);
+        }
         return providerIdEmails;
     }
 
@@ -308,7 +321,7 @@ public class NotificationConsumer {
         return emailResponseList;
     }
 
-    private void handleSpvRequest(String status, Map<String, Object> request, String mdoName, Map<String, Object> mailNotificationDetails) {
+    private void handleSpvRequest(String status, Map<String, Object> request, Map<String, Object> mailNotificationDetails) {
         logger.info("handling spvRequest");
         List<String> emails;
         String subjectLine;

@@ -141,7 +141,7 @@ class DemandServiceImplTest {
         HttpStatus httpStatus = HttpStatus.BAD_REQUEST;
         String status = "FAILED";
 
-        demandService.createErrorResponse(response, errorMessage, httpStatus, status);
+        demandService.createErrorResponse(response, httpStatus, status);
 
         assertNotNull(response.getParams());
         assertEquals(status, response.getParams().getStatus());
@@ -156,7 +156,7 @@ class DemandServiceImplTest {
     void test_createErrorResponse_emptyStrings() {
         CustomResponse response = new CustomResponse();
 
-        demandService.createErrorResponse(response, "", HttpStatus.BAD_REQUEST, "");
+        demandService.createErrorResponse(response,  HttpStatus.BAD_REQUEST, "");
 
         assertNotNull(response.getParams());
         assertEquals("", response.getParams().getStatus());
@@ -171,7 +171,7 @@ class DemandServiceImplTest {
     void test_createErrorResponse_nullInputs() {
         CustomResponse response = new CustomResponse();
 
-        demandService.createErrorResponse(response, null, null, null);
+        demandService.createErrorResponse(response, null, null);
 
         assertNotNull(response.getParams());
         assertEquals(null, response.getParams().getStatus());

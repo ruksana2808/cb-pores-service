@@ -383,6 +383,16 @@ public class Constants {
     public static final String ACCESS_TOKEN_VALIDATION_FAILED = "Access token validation is failed";
     public static final String DESIGNATION_KEY = "Designation";
     public static final String ANNOUNCEMENT_SERVICE_IMPL_UPDATE_INSIDE_METHOD = "AnnouncementServiceImpl::read:inside the method";
+    public static final String DEMAND_DATA_NOT_FOUND="Demand Data not Found with this ID";
+    public static final String ERROR_WHILE_PROCESSING_FILE = "Error while processing file: {}";
+    public static final String DATE_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
+    public static final String COPY_FW_ID = "copy framework id : ";
+    public static final String NULL = "[null]";
+    public static final String CACHED_PLAYLIST = "Cached PlayList: ";
+    public static final String FAILED_TO_CREATE_PLAYLIST = "Failed to Create PalyList: ";
+    public static final String ERR_RECIEVED= "Error received: ";
+    public static final String ERR_RESPONE = "Error Response: ";
+    public static final String DATACENTRE = "datacenter1";
 
     private Constants() {
     }

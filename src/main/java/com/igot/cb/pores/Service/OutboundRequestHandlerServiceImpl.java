@@ -94,11 +94,11 @@ public class OutboundRequestHandlerServiceImpl {
 						});
 			} catch (Exception e1) {
 			}
-			log.error("Error received: " + e.getResponseBodyAsString(), e);
+			log.error(Constants.ERR_RECIEVED + e.getResponseBodyAsString(), e);
 		} catch (Exception e) {
 			log.error(e);
 			try {
-				log.warn("Error Response: " + mapper.writeValueAsString(response));
+				log.warn(Constants.ERR_RESPONE + mapper.writeValueAsString(response));
 			} catch (Exception e1) {
 			}
 		}
@@ -160,11 +160,11 @@ public class OutboundRequestHandlerServiceImpl {
 						});
 			} catch (Exception e1) {
 			}
-			log.error("Error received: " + e.getResponseBodyAsString(), e);
+			log.error(Constants.ERR_RECIEVED + e.getResponseBodyAsString(), e);
 		} catch (Exception e) {
 			log.error(e);
 			try {
-				log.warn("Error Response: " + mapper.writeValueAsString(response));
+				log.warn(Constants.ERR_RESPONE  + mapper.writeValueAsString(response));
 			} catch (Exception e1) {
 			}
 		}
@@ -202,11 +202,11 @@ public class OutboundRequestHandlerServiceImpl {
 						});
 			} catch (Exception e1) {
 			}
-			log.error("Error received: " + hce.getResponseBodyAsString(), hce);
+			log.error(Constants.ERR_RECIEVED + hce.getResponseBodyAsString(), hce);
 		} catch(JsonProcessingException e) {
 			log.error(e);
 			try {
-				log.warn("Error Response: " + mapper.writeValueAsString(response));
+				log.warn(Constants.ERR_RESPONE  + mapper.writeValueAsString(response));
 			} catch (Exception e1) {
 			}
 		}
@@ -236,7 +236,7 @@ public class OutboundRequestHandlerServiceImpl {
 						});
 			} catch (Exception e1) {
 			}
-			log.error("Error received: " + e.getResponseBodyAsString(), e);
+			log.error(Constants.ERR_RECIEVED + e.getResponseBodyAsString(), e);
 		}
 		if (response == null) {
 			return MapUtils.EMPTY_MAP;

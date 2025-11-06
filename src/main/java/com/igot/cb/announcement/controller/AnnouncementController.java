@@ -30,7 +30,7 @@ public class AnnouncementController {
   }
 
   @PostMapping("/v1/search")
-  public ResponseEntity<?> search(@RequestBody SearchCriteria searchCriteria) {
+  public ResponseEntity<CustomResponse> search(@RequestBody SearchCriteria searchCriteria) {
     CustomResponse response = announcementService.searchAnnouncement(searchCriteria);
     return new ResponseEntity<>(response, response.getResponseCode());
   }

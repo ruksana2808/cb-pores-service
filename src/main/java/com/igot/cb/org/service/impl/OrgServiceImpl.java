@@ -93,9 +93,9 @@ public class OrgServiceImpl implements OrgService {
                 String fwName = (String) orgDetails.get(0).get(Constants.FRAMEWORKID);
                 if (StringUtils.isBlank(fwName)) {
                     String name = processFrameworkCreate(frameworkName,orgId);
-                    log.info("copy framework id : ",name);
+                    log.info(Constants.COPY_FW_ID);
                     if (StringUtils.isNotEmpty(name)) {
-                        log.info("copy framework id : ",name);
+                        log.info(Constants.COPY_FW_ID,name);
                         createOrgTerm(termName, name, frameworkName, orgId, userId);
                         publishFramework(name,orgId);
                         log.info("copy framework published and term creation also done.");
@@ -429,9 +429,9 @@ public class OrgServiceImpl implements OrgService {
                 String fwName = (String) orgDetail.get(Constants.ORG_HIERARCHY_FRAMEWORK_ID);
                 if (StringUtils.isBlank(fwName)) {
                     String name = processFrameworkCreate(masterFramework,orgId);
-                    log.info("copy framework id : ",name);
+                    log.info(Constants.COPY_FW_ID,name);
                     if (StringUtils.isNotEmpty(name)) {
-                        log.info("copy framework id : ",name);
+                        log.info(Constants.COPY_FW_ID,name);
                         publishFramework(name,orgId);
                         String orgUpdateUrl = cbServerProperties.getLearnerServiceUrl() + cbServerProperties.getOrgUpdateEndpoint();
                         Map<String, Object> orgResponse = outboundRequestHandlerServiceImpl.fetchResultUsingPatch(orgUpdateUrl,createOrgHierarchyRequestMap(orgId, Constants.ORG_HIERARCHY_FRAMEWORK_ID_KEY, Constants.ORG_HIERARCHY_FRAMEWORK_STATUS_KEY, name, Constants.COMPLETED),ProjectUtil.getDefaultHeadrs(userAuthToken));

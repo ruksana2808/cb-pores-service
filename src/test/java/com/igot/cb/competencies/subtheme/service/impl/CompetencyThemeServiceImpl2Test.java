@@ -3,7 +3,6 @@ package com.igot.cb.competencies.subtheme.service.impl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.igot.cb.authentication.util.AccessTokenValidator;
 import com.igot.cb.competencies.theme.enity.CompetencyThemeEntity;
@@ -63,7 +62,7 @@ class CompetencyThemeServiceImpl2Test {
     @Mock private OutboundRequestHandlerServiceImpl outboundRequestHandlerServiceImpl;
     @Mock private DesignationService designationService;
 
-    private static final String token = "valid-token";
+    private static final String TOKEN = "valid-token";
     @Mock private MultipartFile file;
     private final String refId = "comp123";
     private final String name = "Sample Term";
@@ -142,7 +141,7 @@ class CompetencyThemeServiceImpl2Test {
         result.setData(arrayNode);
         when(esUtilService.searchDocuments(anyString(), any())).thenReturn(result);
 
-        when(accessTokenValidator.verifyUserToken(token)).thenReturn(userId);
+        when(accessTokenValidator.verifyUserToken(TOKEN)).thenReturn(userId);
         when(competencyThemeRepository.count()).thenReturn(5L);
         when(cbServerProperties.getElasticCompJsonPath()).thenReturn("path");
 
@@ -150,7 +149,7 @@ class CompetencyThemeServiceImpl2Test {
 
         //when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
 
-        CustomResponse response = competencyThemeService.createCompTheme(input, token);
+        CustomResponse response = competencyThemeService.createCompTheme(input, TOKEN);
 
         assertEquals(HttpStatus.OK, response.getResponseCode());
         verify(competencyThemeRepository).save(captor.capture());
@@ -171,9 +170,9 @@ class CompetencyThemeServiceImpl2Test {
 
         when(esUtilService.isIndexPresent(Constants.COMP_THEME_INDEX_NAME)).thenReturn(true);
         when(esUtilService.searchDocuments(anyString(), any())).thenReturn(result);
-        when(accessTokenValidator.verifyUserToken(token)).thenReturn("user123");
+        when(accessTokenValidator.verifyUserToken(TOKEN)).thenReturn("user123");
 
-        CustomResponse response = competencyThemeService.createCompTheme(input, token);
+        CustomResponse response = competencyThemeService.createCompTheme(input, TOKEN);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals("Already Present", response.getParams().getErrmsg());
@@ -183,9 +182,9 @@ class CompetencyThemeServiceImpl2Test {
     void testCreateCompTheme_invalidToken() {
         JsonNode input = mockInputNode("Theme A");
 
-        when(accessTokenValidator.verifyUserToken(token)).thenReturn(Constants.UNAUTHORIZED);
+        when(accessTokenValidator.verifyUserToken(TOKEN)).thenReturn(Constants.UNAUTHORIZED);
 
-        CustomResponse response = competencyThemeService.createCompTheme(input, token);
+        CustomResponse response = competencyThemeService.createCompTheme(input, TOKEN);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
         assertEquals(Constants.USER_ID_DOESNT_EXIST, response.getParams().getErrmsg());
@@ -200,7 +199,7 @@ class CompetencyThemeServiceImpl2Test {
                 .thenThrow(new RuntimeException("ES failure"));
 
         Exception exception = assertThrows(CustomException.class,
-                () -> competencyThemeService.createCompTheme(input, token));
+                () -> competencyThemeService.createCompTheme(input, TOKEN));
 
         assertEquals("ES failure", exception.getMessage());
     }
