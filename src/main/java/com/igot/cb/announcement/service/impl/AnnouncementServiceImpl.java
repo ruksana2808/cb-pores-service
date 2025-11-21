@@ -67,6 +67,11 @@ public class AnnouncementServiceImpl implements AnnouncementService {
   @Value("${search.result.redis.ttl}")
   private long searchResultRedisTtl;
 
+  @Value("${search.criteria.default.page.number}")
+  private int defaultPageNumber;
+
+  @Value("${search.criteria.default.page.size}")
+  private int defaultPageSize;
 
   @Override
   public CustomResponse createAnnouncement(JsonNode announcementEntity) {
@@ -355,9 +360,9 @@ public class AnnouncementServiceImpl implements AnnouncementService {
 
       criteria.setOrderBy(Constants.CREATED_ON);
       criteria.setOrderDirection(Constants.ASCENDING);
-      criteria.setFacets(Collections.singletonList("channel"));
-      criteria.setPageNumber(0);
-      criteria.setPageSize(15);
+      criteria.setFacets(Collections.singletonList(Constants.CHANNEL));
+      criteria.setPageNumber(defaultPageNumber);
+      criteria.setPageSize(defaultPageSize);
       redisTemplate.delete(generateRedisJwtTokenKey(criteria));
     }
 }
