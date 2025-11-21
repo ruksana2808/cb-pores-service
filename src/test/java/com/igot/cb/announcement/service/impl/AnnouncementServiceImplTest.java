@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.igot.cb.announcement.entity.AnnouncementEntity;
 import com.igot.cb.announcement.repository.AnnouncementRepository;
@@ -51,6 +52,7 @@ class AnnouncementServiceImplTest {
     @Mock
     private AnnouncementRepository announcementRepository;
 
+    @Spy
     @InjectMocks
     private AnnouncementServiceImpl announcementService;
 
@@ -666,21 +668,24 @@ class AnnouncementServiceImplTest {
         verify(cacheService).putCache(eq(announcementId), any(ObjectNode.class));
     }
 
-
     @Test
-    void test_deleteAnnouncement_success() {
-        entity = new AnnouncementEntity();
+    void test_deleteAnnouncement_success() throws Exception {
+        AnnouncementEntity entity = new AnnouncementEntity();
         entity.setAnnouncementId("announcement123");
         entity.setIsActive(true);
         entity.setUpdatedOn(new Timestamp(System.currentTimeMillis()));
 
-        jsonData = new ObjectMapper().createObjectNode();
+        ObjectMapper realMapper = new ObjectMapper();
+        ObjectNode jsonData = realMapper.createObjectNode();
         jsonData.put("title", "Sample Announcement");
+
+        ArrayNode channelArray = jsonData.putArray(Constants.CHANNEL);
+        channelArray.add("013633005407862784180");
+
         entity.setData(jsonData);
-        // Given
+
         String id = "announcement123";
 
-        ObjectMapper realMapper = new ObjectMapper();
         ObjectNode expectedJsonNode = realMapper.createObjectNode();
         expectedJsonNode.put("title", "Sample Announcement");
         expectedJsonNode.put(Constants.UPDATED_ON, String.valueOf(entity.getUpdatedOn()));
@@ -693,10 +698,10 @@ class AnnouncementServiceImplTest {
                 .thenAnswer(invocation -> realMapper.convertValue(invocation.getArgument(0), Map.class));
         when(announcementRepository.save(any())).thenReturn(entity);
 
-        // When
+        doNothing().when(announcementService).buildDefaultRequest(anyString());
+
         CustomResponse response = announcementService.deleteAnnouncement(id);
 
-        // Then
         assertNotNull(response);
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertEquals(Constants.SUCCESSFULLY_UPDATED, response.getMessage());
