@@ -315,13 +315,16 @@ public class AnnouncementServiceImpl implements AnnouncementService {
       ObjectNode jsonNode = objectMapper.createObjectNode();
       jsonNode.set(Constants.ANNOUNCEMENT_ID, new TextNode(fetchedEntity.getAnnouncementId()));
       jsonNode.setAll((ObjectNode) fetchedJsonData);
-
       Map<String, Object> map = objectMapper.convertValue(jsonNode, Map.class);
       esUtilService.addDocument(Constants.ANNOUNCEMENT_INDEX, Constants.INDEX_TYPE,
           id, map, requiredJsonFilePath);
-
       cacheService.putCache(fetchedEntity.getAnnouncementId(), jsonNode);
-      log.info("deleted announcement");
+      try {
+          buildDefaultRequest(fetchedJsonData.get(Constants.CHANNEL).asText());
+      }catch (Exception e) {
+          throw new CustomException(Constants.ERROR, Constants.NO_DATA_FOUND, HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+        log.info("deleted announcement");
       map.put(Constants.ANNOUNCEMENT_ID, fetchedEntity.getAnnouncementId());
       response.setResult(map);
       response.setMessage(Constants.SUCCESSFULLY_UPDATED);
@@ -332,4 +335,29 @@ public class AnnouncementServiceImpl implements AnnouncementService {
       throw new CustomException(Constants.ERROR, Constants.NO_DATA_FOUND, HttpStatus.NOT_FOUND);
     }
   }
+
+  public void buildDefaultRequest(String channelId) throws Exception {
+      SearchCriteria criteria = new SearchCriteria();
+
+      HashMap<String, Object> filterCriteriaMap = new HashMap<>();
+      filterCriteriaMap.put(Constants.CHANNEL, Collections.singletonList(channelId));
+      filterCriteriaMap.put(Constants.STATUS, Constants.ACTIVE);
+      criteria.setFilterCriteriaMap(filterCriteriaMap);
+
+      criteria.setRequestedFields(Arrays.asList(
+              Constants.NAME,
+              Constants.DESCRIPTION,
+              Constants.CREATED_ON,
+              Constants.UPDATED_ON,
+              Constants.CATEGORY,
+              Constants.ANNOUNCEMENT_ID
+      ));
+
+      criteria.setOrderBy(Constants.CREATED_ON);
+      criteria.setOrderDirection(Constants.ASCENDING);
+      criteria.setFacets(Collections.singletonList("channel"));
+      criteria.setPageNumber(0);
+      criteria.setPageSize(15);
+      redisTemplate.delete(generateRedisJwtTokenKey(criteria));
+    }
 }

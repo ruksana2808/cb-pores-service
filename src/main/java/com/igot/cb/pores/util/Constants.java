@@ -379,6 +379,10 @@ public class Constants {
     public static final String FRAMEWORK_STATUS_KEY = "frameworkStatus";
     public static final String CASSANDRA_CONFIG_PORT = "cassandra.config.port";
     public static final String ACCESS_SETTINGS_ENABLED = "accessSettingsEnabled";
+    public static final String CHANNEL = "channel";
+    public static final String ASCENDING = "ASC";
+    public static final String ORDER_BY = "orderBy";
+    public static final String ORDER_DIRECTION = "orderDirection";
 
     private Constants() {
     }
