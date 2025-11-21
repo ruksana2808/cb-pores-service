@@ -76,6 +76,9 @@ public class AnnouncementServiceImpl implements AnnouncementService {
   @Value("${search.criteria.default.facets}")
   private String facetsConfig;
 
+  @Value("${search.criteria.default.requested.fields}")
+  private String requestedFieldsConfig;
+
   @Override
   public CustomResponse createAnnouncement(JsonNode announcementEntity) {
     log.info("AnnouncementServiceImpl::createAnnouncement:inside");
@@ -351,16 +354,11 @@ public class AnnouncementServiceImpl implements AnnouncementService {
       filterCriteriaMap.put(Constants.CHANNEL, Collections.singletonList(channelId));
       filterCriteriaMap.put(Constants.STATUS, Constants.ACTIVE);
       criteria.setFilterCriteriaMap(filterCriteriaMap);
+      List<String> requestedFields = Arrays.stream(requestedFieldsConfig.split(","))
+              .map(String::trim)
+              .toList();
 
-      criteria.setRequestedFields(Arrays.asList(
-              Constants.NAME,
-              Constants.DESCRIPTION,
-              Constants.CREATED_ON,
-              Constants.UPDATED_ON,
-              Constants.CATEGORY,
-              Constants.ANNOUNCEMENT_ID
-      ));
-
+      criteria.setRequestedFields(requestedFields);
       criteria.setOrderBy(Constants.CREATED_ON);
       criteria.setOrderDirection(Constants.ASCENDING);
       List<String> defaultFacets = Arrays.stream(facetsConfig.split(","))
