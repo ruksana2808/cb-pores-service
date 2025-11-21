@@ -73,6 +73,9 @@ public class AnnouncementServiceImpl implements AnnouncementService {
   @Value("${search.criteria.default.page.size}")
   private int defaultPageSize;
 
+  @Value("${search.criteria.default.facets}")
+  private String facetsConfig;
+
   @Override
   public CustomResponse createAnnouncement(JsonNode announcementEntity) {
     log.info("AnnouncementServiceImpl::createAnnouncement:inside");
@@ -326,10 +329,10 @@ public class AnnouncementServiceImpl implements AnnouncementService {
       cacheService.putCache(fetchedEntity.getAnnouncementId(), jsonNode);
       try {
           buildDefaultRequest(fetchedJsonData.get(Constants.CHANNEL).asText());
-      }catch (Exception e) {
+      } catch (Exception e) {
           throw new CustomException(Constants.ERROR, Constants.NO_DATA_FOUND, HttpStatus.INTERNAL_SERVER_ERROR);
       }
-        log.info("deleted announcement");
+      log.info("deleted announcement");
       map.put(Constants.ANNOUNCEMENT_ID, fetchedEntity.getAnnouncementId());
       response.setResult(map);
       response.setMessage(Constants.SUCCESSFULLY_UPDATED);
@@ -360,7 +363,10 @@ public class AnnouncementServiceImpl implements AnnouncementService {
 
       criteria.setOrderBy(Constants.CREATED_ON);
       criteria.setOrderDirection(Constants.ASCENDING);
-      criteria.setFacets(Collections.singletonList(Constants.CHANNEL));
+      List<String> defaultFacets = Arrays.stream(facetsConfig.split(","))
+              .map(String::trim)
+              .toList();
+      criteria.setFacets(defaultFacets);
       criteria.setPageNumber(defaultPageNumber);
       criteria.setPageSize(defaultPageSize);
       redisTemplate.delete(generateRedisJwtTokenKey(criteria));
