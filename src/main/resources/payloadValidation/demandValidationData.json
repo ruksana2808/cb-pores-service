@@ -26,6 +26,12 @@
         "type": "object"
       }
     },
+    "competencies_v6": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
     "referenceLink": {
       "type": "string"
     },

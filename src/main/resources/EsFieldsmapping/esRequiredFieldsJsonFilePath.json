@@ -22,6 +22,9 @@
       }
     }
   },
+  "competencies_v6": {
+    "type": "keyword"
+  },
   "referenceLink": {
     "type": "keyword"
   },
