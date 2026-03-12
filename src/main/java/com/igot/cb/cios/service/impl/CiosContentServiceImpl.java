@@ -459,6 +459,9 @@ public class CiosContentServiceImpl implements CiosContentService {
             JsonNode searchTags = addSearchTags(eachData.getTags(),eachData.getContentData());
             contentNode.set(Constants.SEARCHTAGS, searchTags);
         }
+        if (eachData.getBadgeDetails_v1() != null) {
+            contentNode.set(Constants.BADGE_DETAILS_V1, eachData.getBadgeDetails_v1());
+        }
         contentNode.set(Constants.ACCESS_SETTINGS_ENABLED, BooleanNode.valueOf(eachData.isAccessSettingsEnabled()));
         String difficultyLevel = eachData.getDifficultyLevel();
         if (StringUtils.isNotBlank(difficultyLevel)) {

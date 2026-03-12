@@ -21,4 +21,5 @@ public class ObjectDto{
     private String status;
     private String difficultyLevel;
     private boolean accessSettingsEnabled;
+    private JsonNode badgeDetails_v1;
 }
