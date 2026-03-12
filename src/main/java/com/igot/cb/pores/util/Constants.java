@@ -450,7 +450,7 @@ public class Constants {
     public static final String LOG_ES_UPDATE_FAILURE = "ES update failed for contentId={}";
     public static final String LOG_DB_BULK_UPDATE_SUCCESS = "DB bulk update successful for receivedContentIdsSize={} and updatedRecordsCount={}";
     public static final String LOG_DB_BULK_UPDATE_FAILURE = "DB bulk update failed for contentIds={}";
-
+    public static final String BADGE_DETAILS_V1 = "badgeDetails_v1";
 
 
     private Constants() {

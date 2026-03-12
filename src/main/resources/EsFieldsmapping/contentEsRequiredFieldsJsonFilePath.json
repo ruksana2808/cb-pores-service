@@ -63,5 +63,8 @@
   },
   "accessSettingsEnabled": {
     "type": "boolean"
+  },
+  "badgeDetails_v1": {
+    "type": "keyword"
   }
 }
