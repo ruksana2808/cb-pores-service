@@ -252,10 +252,22 @@ public class EsUtilServiceImpl implements EsUtilService {
                         } else if (value instanceof Boolean) {
                             boolQueries.add(Query.of(q ->q.term(t->t.field(field).value((boolean)value))));
                         } else if (value instanceof ArrayList) {
-                            List<FieldValue> termsList = ((ArrayList<String>) value).stream()
-                                    .map(FieldValue::of)
-                                    .collect(Collectors.toList());
-                            boolQueryBuilder.must(Query.of(q -> q.terms(t -> t.field(field + Constants.KEYWORD).terms(terms -> terms.value(termsList)))));
+                            List<?> list = (List<?>) value;
+                            if (!list.isEmpty() && list.get(0) instanceof Boolean) {
+                                // Handle list of booleans
+                                List<FieldValue> boolTermsList = list.stream()
+                                        .map(item -> FieldValue.of((Boolean) item))
+                                        .collect(Collectors.toList());
+                                boolQueryBuilder.must(Query.of(q -> q.terms(t -> t.field(field)
+                                        .terms(terms -> terms.value(boolTermsList)))));
+                            } else {
+                                // Handle list of strings
+                                List<FieldValue> termsList = ((ArrayList<String>) value).stream()
+                                        .map(FieldValue::of)
+                                        .collect(Collectors.toList());
+                                boolQueryBuilder.must(Query.of(q -> q.terms(t -> t.field(field + Constants.KEYWORD)
+                                        .terms(terms -> terms.value(termsList)))));
+                            }
                         } else if (value instanceof String) {
                             boolQueryBuilder.must(Query.of(q -> q.terms(t ->
                                     t.field(field + Constants.KEYWORD)
