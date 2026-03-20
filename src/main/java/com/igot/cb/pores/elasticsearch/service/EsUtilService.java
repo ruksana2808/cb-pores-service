@@ -25,4 +25,6 @@ public interface EsUtilService {
 
   BulkResponse saveAll(String esIndexName, List<JsonNode> entities) throws IOException;
 
+  SearchResult searchDocumentsV2(String esIndexName, SearchCriteria searchCriteria);
+
 }

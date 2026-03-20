@@ -33,6 +33,9 @@ public class CbServerProperties {
   @Value("${search.result.redis.ttl}")
   private long searchResultRedisTtl;
 
+  @Value("${jwt.secret.key}")
+  private String jwtSecretKey;
+
   @Value("${sb.api.key}")
   private String sbApiKey;
 
@@ -185,6 +188,9 @@ public class CbServerProperties {
 
     @Value("${kafka.topic.content.partner.activate}")
     private String contentPartnerActivateTopic;
+
+    @Value("${search.fields.with.boost}")
+    private String searchFieldsWithBoost;
 
     public List<String> getOrgHierarchyCreateRequiredRoles() {
       return Arrays.asList(orgHierarchyCreateRoles.split(","));

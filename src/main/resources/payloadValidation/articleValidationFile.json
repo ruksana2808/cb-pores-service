@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "articleId": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "categoryId": {
+      "type": "string"
+    },
+    "subCategoryId": {
+      "type": "string"
+    },
+    "showUnderDeveloperDocs": {
+      "type": "boolean"
+    },
+    "createdBy": {
+      "type": "string"
+    },
+    "updatedBy": {
+      "type": "string"
+    },
+    "createdOn": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedOn": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "article"
+      ]
+    },
+    "isPublic": {
+      "type": "boolean"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "PUBLISHED",
+        "ARCHIVED"
+      ]
+    }
+  },
+  "required": [
+    "title",
+    "summary",
+    "categoryId",
+    "subCategoryId",
+    "type"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "PUBLISHED"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "articleId",
+          "title",
+          "content",
+          "categoryId",
+          "subCategoryId",
+          "showUnderDeveloperDocs",
+          "createdBy",
+          "updatedBy",
+          "status",
+          "isPublic",
+          "type"
+        ]
+      }
+    }
+  ],
+  "additionalProperties": false
+}

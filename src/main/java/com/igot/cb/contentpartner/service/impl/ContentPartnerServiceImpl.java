@@ -129,6 +129,8 @@ public class ContentPartnerServiceImpl implements ContentPartnerService {
                         cacheService.deleteCache(newPartnerCode);
                     }
                     cacheService.deleteCache(updateJsonEntity.getId());
+                    // Clear search-related Redis cache
+                    clearSearchCache();
                 }
                 log.info(Constants.UPDATED_CONTENT_PARTNER);
                 response.setResult(result);
@@ -240,6 +242,8 @@ public class ContentPartnerServiceImpl implements ContentPartnerService {
         esUtilService.addDocument(Constants.CONTENT_PROVIDER_INDEX_NAME, Constants.INDEX_TYPE, id, map, cbServerProperties.getElasticContentJsonPath());
         Map<String, Object> result = objectMapper.convertValue(saveJsonEntity, Map.class);
         cacheService.putCache(saveJsonEntity.getId(), result);
+        // Clear search-related Redis cache
+        clearSearchCache();
         log.info(Constants.CONTENT_PARTNER_CREATED);
         response.setResult(result);
         response.setResponseCode(HttpStatus.OK);
@@ -385,6 +389,8 @@ public class ContentPartnerServiceImpl implements ContentPartnerService {
                     esUtilService.addDocument(Constants.CONTENT_PROVIDER_INDEX_NAME, Constants.INDEX_TYPE, id, map, cbServerProperties.getElasticContentJsonPath());
                     cacheService.deleteCache(id);
                     cacheService.deleteCache((String) map.get(Constants.PARTNERCODE));
+                    // Clear search-related Redis cache
+                    clearSearchCache();
                     Map<String,Object> map1=new HashMap<>();
                     map1.put(id,Constants.DELETED_SUCCESSFULLY);
                     response.setResponseCode(HttpStatus.OK);
@@ -451,6 +457,48 @@ public class ContentPartnerServiceImpl implements ContentPartnerService {
         return "";
     }
 
+    /**
+     * Clear search-related Redis cache entry for content partner search.
+     * Clears the specific search pattern used in the UI.
+     */
+    private void clearSearchCache() {
+        try {
+            String cacheKey = generateRedisJwtTokenKey(buildCommonSearchPatterns());
+            if (StringUtils.isNotBlank(cacheKey)) {
+                Boolean deleted = redisTemplate.delete(cacheKey);
+                if (Boolean.TRUE.equals(deleted)) {
+                    log.info("Cleared search cache entry from Redis after partner status change. Key: {}", cacheKey);
+                } else {
+                    log.debug("No search cache entry found to delete for key: {}", cacheKey);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error clearing search cache from Redis: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Build common search patterns that are typically used and need cache invalidation.
+     * IMPORTANT: Must include all fields (including nulls) to match exact JWT token.
+     */
+    private SearchCriteria buildCommonSearchPatterns() {
+        SearchCriteria searchCriteria = new SearchCriteria();
+        Map<String, Object> filterMap1 = new HashMap<>();
+        filterMap1.put(Constants.PROVIDER_TYPE, Collections.singletonList(Constants.EXTERNAL));
+        searchCriteria.setFilterCriteriaMap((HashMap<String, Object>) filterMap1);
+        searchCriteria.setRequestedFields(null);
+        searchCriteria.setPageNumber(0);
+        searchCriteria.setPageSize(20);
+        searchCriteria.setOrderBy(Constants.UPDATED_ON);
+        searchCriteria.setOrderDirection(Constants.DESC);
+        searchCriteria.setSearchString(null);
+        searchCriteria.setFacets(Collections.singletonList(Constants.CONTENT_PARTNER_NAME));
+        searchCriteria.setQuery(null);
+        searchCriteria.setStartsWith(null);
+        searchCriteria.setStartsWithField(null);
+        return searchCriteria;
+    }
+
     @Override
     public ApiResponse activate(JsonNode partnerDetails) {
         log.info("ContentPartnerServiceImpl::activate: activating the content partner");
@@ -479,6 +527,8 @@ public class ContentPartnerServiceImpl implements ContentPartnerService {
                 esUtilService.addDocument(Constants.CONTENT_PROVIDER_INDEX_NAME, Constants.INDEX_TYPE, id, map, cbServerProperties.getElasticContentJsonPath());
                 cacheService.deleteCache(id);
                 cacheService.deleteCache((String) map.get(Constants.PARTNERCODE));
+                // Clear search-related Redis cache
+                clearSearchCache();
                 Map<String, Object> result = new HashMap<>();
                 result.put(id, Constants.ACTIVATED_SUCCESSFULLY);
                 response.setResponseCode(HttpStatus.OK);

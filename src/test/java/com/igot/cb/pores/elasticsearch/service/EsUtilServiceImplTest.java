@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.igot.cb.pores.elasticsearch.dto.SearchCriteria;
 import com.igot.cb.pores.elasticsearch.dto.SearchResult;
 import com.igot.cb.pores.exceptions.CustomException;
+import com.igot.cb.pores.util.CbServerProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,6 +51,9 @@ class EsUtilServiceImplTest {
     @Mock
     private ObjectMapper objectMapper;
 
+    @Mock
+    private CbServerProperties cbServerProperties;
+
     @InjectMocks
     private EsUtilServiceImpl esUtilService;
 
@@ -77,19 +81,6 @@ class EsUtilServiceImplTest {
         filters.put("rating", Map.of("gte", JsonData.of(4)));
         sampleCriteria.setFilterCriteriaMap((HashMap<String, Object>) filters);
     }
-
-
-//    @Test
-//    void testReadSchema_throwsCustomException() {
-//        String index = "test-index";
-//        String schemaPath = "schema.json";
-//        CustomException ex = assertThrows(CustomException.class, () -> {
-//            esUtilService.searchDocuments(index, sampleCriteria);
-//        });
-//
-//        assertEquals("argument \"src\" is null", ex.getMessage());
-//        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, ex.getHttpStatusCode());
-//    }
 
     @Test
     void saveAll_shouldReturnBulkResponse_whenSuccess() throws IOException {
@@ -167,78 +158,6 @@ class EsUtilServiceImplTest {
         String result = esUtilService.addDocument("index", "1", "", Map.of("key", "val"), "/nonexistent.json");
         assertNull(result);
     }
-
-//    @Test
-//    void testAddDocument_successfullyIndexed() throws Exception {
-//        // Given
-//        String indexName = "test-index";
-//        String documentId = "123";
-//        String jsonFilePath = "/schema.json";
-//
-//        Map<String, Object> schemaMap = Map.of(
-//                "field1", "string",
-//                "field2", "integer"
-//        );
-//
-//        Map<String, Object> inputDocument = new HashMap<>();
-//        inputDocument.put("field1", "value1");
-//        inputDocument.put("field2", 123);
-//        inputDocument.put("extraField", "shouldBeRemoved");
-//
-//        // Mock ObjectMapper behavior
-//        when(objectMapper.readValue(
-//                any(InputStream.class),
-//                ArgumentMatchers.<TypeReference<Map<String, Object>>>any()
-//        )).thenReturn(schemaMap);
-//
-//        // Mock index response
-//        IndexResponse mockResponse = mock(IndexResponse.class);
-//        when(mockResponse.result()).thenReturn(Result.Created);
-//        when(elasticsearchClient.index(any(IndexRequest.class))).thenReturn(mockResponse);
-//        // When
-//        String result = esUtilService.addDocument(indexName, documentId, "", inputDocument, jsonFilePath);
-//
-//        // Then
-//        assertNotNull(result); // ensure the response isn't null
-//        assertTrue(result.contains("Successfully indexed"));
-//        verify(elasticsearchClient, times(1)).index((IndexRequest<Object>) any());
-//    }
-
-//    @Test
-//    void testUpdated_successfullyUpdated() throws Exception {
-//        // Given
-//        String indexName = "test-index";
-//        String documentId = "123";
-//        String jsonFilePath = "/schema.json";
-//
-//        Map<String, Object> schemaMap = Map.of(
-//                "field1", "string",
-//                "field2", "integer"
-//        );
-//
-//        Map<String, Object> inputDocument = new HashMap<>();
-//        inputDocument.put("field1", "value1");
-//        inputDocument.put("field2", 123);
-//        inputDocument.put("extraField", "shouldBeRemoved");
-//
-//        // Mock ObjectMapper behavior
-//        when(objectMapper.readValue(
-//                any(InputStream.class),
-//                ArgumentMatchers.<TypeReference<Map<String, Object>>>any()
-//        )).thenReturn(schemaMap);
-//
-//        // Mock index response
-//        IndexResponse mockResponse = mock(IndexResponse.class);
-//        when(mockResponse.result()).thenReturn(Result.Created);
-//        when(elasticsearchClient.index(any(IndexRequest.class))).thenReturn(mockResponse);
-//        // When
-//        String result = esUtilService.updateDocument(indexName, documentId, "",inputDocument, jsonFilePath);
-//
-//        // Then
-//        assertNotNull(result); // ensure the response isn't null
-//        assertTrue(result.contains("created"));
-//        verify(elasticsearchClient, times(1)).index((IndexRequest<Object>) any());
-//    }
 
     @Test
     void searchDocuments_Success() throws IOException {
@@ -440,6 +359,449 @@ class EsUtilServiceImplTest {
 
         // Assert
         assertNull(result, "Expected result to be null due to IOException");
+    }
+
+
+    @Test
+    void searchDocumentsV2_shouldHandleSearchString_withBoostConfiguration() throws IOException {
+        // Arrange
+        String esIndexName = "test-index";
+        SearchCriteria searchCriteria = new SearchCriteria();
+        searchCriteria.setPageNumber(0);
+        searchCriteria.setPageSize(10);
+        searchCriteria.setSearchString("spring boot tutorial");
+
+        when(cbServerProperties.getSearchFieldsWithBoost())
+                .thenReturn("title:2.0,summary:1.5,tags:1.0");
+
+        TotalHits totalHits = new TotalHits.Builder()
+                .value(25L)
+                .relation(TotalHitsRelation.Eq)
+                .build();
+
+        HitsMetadata<Object> hitsMetadata = new HitsMetadata.Builder<>()
+                .total(totalHits)
+                .hits(Collections.emptyList())
+                .build();
+
+        SearchResponse<Object> mockSearchResponse = new SearchResponse.Builder<Object>()
+                .took(10)
+                .timedOut(false)
+                .shards(s -> s.total(1).successful(1).failed(0).skipped(0))
+                .hits(hitsMetadata)
+                .aggregations(new HashMap<>())
+                .build();
+
+        when(elasticsearchClient.search(any(SearchRequest.class), eq(Object.class)))
+                .thenReturn(mockSearchResponse);
+        when(objectMapper.valueToTree(any())).thenReturn(mock(JsonNode.class));
+
+        // Act
+        SearchResult result = esUtilService.searchDocumentsV2(esIndexName, searchCriteria);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(25L, result.getTotalCount());
+    }
+
+    @Test
+    void searchDocumentsV2_shouldHandleEmptySearchString() throws IOException {
+        // Arrange
+        String esIndexName = "test-index";
+        SearchCriteria searchCriteria = new SearchCriteria();
+        searchCriteria.setPageNumber(0);
+        searchCriteria.setPageSize(10);
+        searchCriteria.setSearchString("");
+
+        TotalHits totalHits = new TotalHits.Builder()
+                .value(100L)
+                .relation(TotalHitsRelation.Eq)
+                .build();
+
+        HitsMetadata<Object> hitsMetadata = new HitsMetadata.Builder<>()
+                .total(totalHits)
+                .hits(Collections.emptyList())
+                .build();
+
+        SearchResponse<Object> mockSearchResponse = new SearchResponse.Builder<Object>()
+                .took(10)
+                .timedOut(false)
+                .shards(s -> s.total(1).successful(1).failed(0).skipped(0))
+                .hits(hitsMetadata)
+                .aggregations(new HashMap<>())
+                .build();
+
+        when(elasticsearchClient.search(any(SearchRequest.class), eq(Object.class)))
+                .thenReturn(mockSearchResponse);
+        when(objectMapper.valueToTree(any())).thenReturn(mock(JsonNode.class));
+
+        // Act
+        SearchResult result = esUtilService.searchDocumentsV2(esIndexName, searchCriteria);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(100L, result.getTotalCount());
+    }
+
+    @Test
+    void searchDocumentsV2_shouldHandleNullSearchString() throws IOException {
+        // Arrange
+        String esIndexName = "test-index";
+        SearchCriteria searchCriteria = new SearchCriteria();
+        searchCriteria.setPageNumber(0);
+        searchCriteria.setPageSize(10);
+        searchCriteria.setSearchString(null);
+
+        TotalHits totalHits = new TotalHits.Builder()
+                .value(100L)
+                .relation(TotalHitsRelation.Eq)
+                .build();
+
+        HitsMetadata<Object> hitsMetadata = new HitsMetadata.Builder<>()
+                .total(totalHits)
+                .hits(Collections.emptyList())
+                .build();
+
+        SearchResponse<Object> mockSearchResponse = new SearchResponse.Builder<Object>()
+                .took(10)
+                .timedOut(false)
+                .shards(s -> s.total(1).successful(1).failed(0).skipped(0))
+                .hits(hitsMetadata)
+                .aggregations(new HashMap<>())
+                .build();
+
+        when(elasticsearchClient.search(any(SearchRequest.class), eq(Object.class)))
+                .thenReturn(mockSearchResponse);
+        when(objectMapper.valueToTree(any())).thenReturn(mock(JsonNode.class));
+
+        // Act
+        SearchResult result = esUtilService.searchDocumentsV2(esIndexName, searchCriteria);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(100L, result.getTotalCount());
+    }
+
+    @Test
+    void searchDocumentsV2_shouldHandleEmptyBoostConfiguration() throws IOException {
+        // Arrange
+        String esIndexName = "test-index";
+        SearchCriteria searchCriteria = new SearchCriteria();
+        searchCriteria.setPageNumber(0);
+        searchCriteria.setPageSize(10);
+        searchCriteria.setSearchString("test search");
+
+        when(cbServerProperties.getSearchFieldsWithBoost()).thenReturn("");
+
+        TotalHits totalHits = new TotalHits.Builder()
+                .value(0L)
+                .relation(TotalHitsRelation.Eq)
+                .build();
+
+        HitsMetadata<Object> hitsMetadata = new HitsMetadata.Builder<>()
+                .total(totalHits)
+                .hits(Collections.emptyList())
+                .build();
+
+        SearchResponse<Object> mockSearchResponse = new SearchResponse.Builder<Object>()
+                .took(10)
+                .timedOut(false)
+                .shards(s -> s.total(1).successful(1).failed(0).skipped(0))
+                .hits(hitsMetadata)
+                .aggregations(new HashMap<>())
+                .build();
+
+        when(elasticsearchClient.search(any(SearchRequest.class), eq(Object.class)))
+                .thenReturn(mockSearchResponse);
+        when(objectMapper.valueToTree(any())).thenReturn(mock(JsonNode.class));
+
+        // Act
+        SearchResult result = esUtilService.searchDocumentsV2(esIndexName, searchCriteria);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(0L, result.getTotalCount());
+    }
+
+    @Test
+    void searchDocumentsV2_shouldHandleNullBoostConfiguration() throws IOException {
+        // Arrange
+        String esIndexName = "test-index";
+        SearchCriteria searchCriteria = new SearchCriteria();
+        searchCriteria.setPageNumber(0);
+        searchCriteria.setPageSize(10);
+        searchCriteria.setSearchString("test search");
+
+        when(cbServerProperties.getSearchFieldsWithBoost()).thenReturn(null);
+
+        TotalHits totalHits = new TotalHits.Builder()
+                .value(0L)
+                .relation(TotalHitsRelation.Eq)
+                .build();
+
+        HitsMetadata<Object> hitsMetadata = new HitsMetadata.Builder<>()
+                .total(totalHits)
+                .hits(Collections.emptyList())
+                .build();
+
+        SearchResponse<Object> mockSearchResponse = new SearchResponse.Builder<Object>()
+                .took(10)
+                .timedOut(false)
+                .shards(s -> s.total(1).successful(1).failed(0).skipped(0))
+                .hits(hitsMetadata)
+                .aggregations(new HashMap<>())
+                .build();
+
+        when(elasticsearchClient.search(any(SearchRequest.class), eq(Object.class)))
+                .thenReturn(mockSearchResponse);
+        when(objectMapper.valueToTree(any())).thenReturn(mock(JsonNode.class));
+
+        // Act
+        SearchResult result = esUtilService.searchDocumentsV2(esIndexName, searchCriteria);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(0L, result.getTotalCount());
+    }
+
+    @Test
+    void searchDocumentsV2_shouldHandleEmptyFacets() throws IOException {
+        // Arrange
+        String esIndexName = "test-index";
+        SearchCriteria searchCriteria = new SearchCriteria();
+        searchCriteria.setPageNumber(0);
+        searchCriteria.setPageSize(10);
+        searchCriteria.setFacets(Collections.emptyList());
+
+        TotalHits totalHits = new TotalHits.Builder()
+                .value(30L)
+                .relation(TotalHitsRelation.Eq)
+                .build();
+
+        HitsMetadata<Object> hitsMetadata = new HitsMetadata.Builder<>()
+                .total(totalHits)
+                .hits(Collections.emptyList())
+                .build();
+
+        SearchResponse<Object> mockSearchResponse = new SearchResponse.Builder<Object>()
+                .took(10)
+                .timedOut(false)
+                .shards(s -> s.total(1).successful(1).failed(0).skipped(0))
+                .hits(hitsMetadata)
+                .aggregations(new HashMap<>())
+                .build();
+
+        when(elasticsearchClient.search(any(SearchRequest.class), eq(Object.class)))
+                .thenReturn(mockSearchResponse);
+        when(objectMapper.valueToTree(any())).thenReturn(mock(JsonNode.class));
+
+        // Act
+        SearchResult result = esUtilService.searchDocumentsV2(esIndexName, searchCriteria);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(30L, result.getTotalCount());
+    }
+
+    @Test
+    void searchDocumentsV2_shouldHandleLargePaginationOffset() throws IOException {
+        // Arrange
+        String esIndexName = "test-index";
+        SearchCriteria searchCriteria = new SearchCriteria();
+        searchCriteria.setPageNumber(100);
+        searchCriteria.setPageSize(50);
+
+        TotalHits totalHits = new TotalHits.Builder()
+                .value(10000L)
+                .relation(TotalHitsRelation.Eq)
+                .build();
+
+        HitsMetadata<Object> hitsMetadata = new HitsMetadata.Builder<>()
+                .total(totalHits)
+                .hits(Collections.emptyList())
+                .build();
+
+        SearchResponse<Object> mockSearchResponse = new SearchResponse.Builder<Object>()
+                .took(10)
+                .timedOut(false)
+                .shards(s -> s.total(1).successful(1).failed(0).skipped(0))
+                .hits(hitsMetadata)
+                .aggregations(new HashMap<>())
+                .build();
+
+        when(elasticsearchClient.search(any(SearchRequest.class), eq(Object.class)))
+                .thenReturn(mockSearchResponse);
+        when(objectMapper.valueToTree(any())).thenReturn(mock(JsonNode.class));
+
+        // Act
+        SearchResult result = esUtilService.searchDocumentsV2(esIndexName, searchCriteria);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(10000L, result.getTotalCount());
+    }
+
+    @Test
+    void searchDocumentsV2_shouldHandleEmptyStartsWith() throws IOException {
+        // Arrange
+        String esIndexName = "test-index";
+        SearchCriteria searchCriteria = new SearchCriteria();
+        searchCriteria.setPageNumber(0);
+        searchCriteria.setPageSize(10);
+        searchCriteria.setStartsWith("");
+        searchCriteria.setStartsWithField("title");
+
+        TotalHits totalHits = new TotalHits.Builder()
+                .value(100L)
+                .relation(TotalHitsRelation.Eq)
+                .build();
+
+        HitsMetadata<Object> hitsMetadata = new HitsMetadata.Builder<>()
+                .total(totalHits)
+                .hits(Collections.emptyList())
+                .build();
+
+        SearchResponse<Object> mockSearchResponse = new SearchResponse.Builder<Object>()
+                .took(10)
+                .timedOut(false)
+                .shards(s -> s.total(1).successful(1).failed(0).skipped(0))
+                .hits(hitsMetadata)
+                .aggregations(new HashMap<>())
+                .build();
+
+        when(elasticsearchClient.search(any(SearchRequest.class), eq(Object.class)))
+                .thenReturn(mockSearchResponse);
+        when(objectMapper.valueToTree(any())).thenReturn(mock(JsonNode.class));
+
+        // Act
+        SearchResult result = esUtilService.searchDocumentsV2(esIndexName, searchCriteria);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(100L, result.getTotalCount());
+    }
+
+    @Test
+    void searchDocumentsV2_shouldHandleNullStartsWithField() throws IOException {
+        // Arrange
+        String esIndexName = "test-index";
+        SearchCriteria searchCriteria = new SearchCriteria();
+        searchCriteria.setPageNumber(0);
+        searchCriteria.setPageSize(10);
+        searchCriteria.setStartsWith("test");
+        searchCriteria.setStartsWithField(null);
+
+        TotalHits totalHits = new TotalHits.Builder()
+                .value(100L)
+                .relation(TotalHitsRelation.Eq)
+                .build();
+
+        HitsMetadata<Object> hitsMetadata = new HitsMetadata.Builder<>()
+                .total(totalHits)
+                .hits(Collections.emptyList())
+                .build();
+
+        SearchResponse<Object> mockSearchResponse = new SearchResponse.Builder<Object>()
+                .took(10)
+                .timedOut(false)
+                .shards(s -> s.total(1).successful(1).failed(0).skipped(0))
+                .hits(hitsMetadata)
+                .aggregations(new HashMap<>())
+                .build();
+
+        when(elasticsearchClient.search(any(SearchRequest.class), eq(Object.class)))
+                .thenReturn(mockSearchResponse);
+        when(objectMapper.valueToTree(any())).thenReturn(mock(JsonNode.class));
+
+        // Act
+        SearchResult result = esUtilService.searchDocumentsV2(esIndexName, searchCriteria);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(100L, result.getTotalCount());
+    }
+
+    @Test
+    void searchDocumentsV2_shouldHandleSearchStringWithSpecialCharacters() throws IOException {
+        // Arrange
+        String esIndexName = "test-index";
+        SearchCriteria searchCriteria = new SearchCriteria();
+        searchCriteria.setPageNumber(0);
+        searchCriteria.setPageSize(10);
+        searchCriteria.setSearchString("java & spring * boot ? test");
+
+        when(cbServerProperties.getSearchFieldsWithBoost())
+                .thenReturn("title:2.0,summary:1.5");
+
+        TotalHits totalHits = new TotalHits.Builder()
+                .value(5L)
+                .relation(TotalHitsRelation.Eq)
+                .build();
+
+        HitsMetadata<Object> hitsMetadata = new HitsMetadata.Builder<>()
+                .total(totalHits)
+                .hits(Collections.emptyList())
+                .build();
+
+        SearchResponse<Object> mockSearchResponse = new SearchResponse.Builder<Object>()
+                .took(10)
+                .timedOut(false)
+                .shards(s -> s.total(1).successful(1).failed(0).skipped(0))
+                .hits(hitsMetadata)
+                .aggregations(new HashMap<>())
+                .build();
+
+        when(elasticsearchClient.search(any(SearchRequest.class), eq(Object.class)))
+                .thenReturn(mockSearchResponse);
+        when(objectMapper.valueToTree(any())).thenReturn(mock(JsonNode.class));
+
+        // Act
+        SearchResult result = esUtilService.searchDocumentsV2(esIndexName, searchCriteria);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(5L, result.getTotalCount());
+    }
+
+    @Test
+    void searchDocumentsV2_shouldHandleInvalidBoostConfigFormat() throws IOException {
+        // Arrange
+        String esIndexName = "test-index";
+        SearchCriteria searchCriteria = new SearchCriteria();
+        searchCriteria.setPageNumber(0);
+        searchCriteria.setPageSize(10);
+        searchCriteria.setSearchString("test");
+
+        when(cbServerProperties.getSearchFieldsWithBoost())
+                .thenReturn("title,summary:1.5"); // Invalid format for first field
+
+        TotalHits totalHits = new TotalHits.Builder()
+                .value(0L)
+                .relation(TotalHitsRelation.Eq)
+                .build();
+
+        HitsMetadata<Object> hitsMetadata = new HitsMetadata.Builder<>()
+                .total(totalHits)
+                .hits(Collections.emptyList())
+                .build();
+
+        SearchResponse<Object> mockSearchResponse = new SearchResponse.Builder<Object>()
+                .took(10)
+                .timedOut(false)
+                .shards(s -> s.total(1).successful(1).failed(0).skipped(0))
+                .hits(hitsMetadata)
+                .aggregations(new HashMap<>())
+                .build();
+
+        when(elasticsearchClient.search(any(SearchRequest.class), eq(Object.class)))
+                .thenReturn(mockSearchResponse);
+        when(objectMapper.valueToTree(any())).thenReturn(mock(JsonNode.class));
+
+        // Act
+        SearchResult result = esUtilService.searchDocumentsV2(esIndexName, searchCriteria);
+
+        // Assert
+        assertNotNull(result);
     }
 
 }

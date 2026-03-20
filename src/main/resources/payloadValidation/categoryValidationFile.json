@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "categoryId": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "showUnderDeveloperDocs": {
+      "type": "boolean"
+    },
+    "createdBy": {
+      "type": "string"
+    },
+    "updatedBy": {
+        "type": "string"
+    },
+    "createdOn": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "category"
+      ]
+    },
+    "isPublic": {
+      "type": "boolean"
+    },
+    "updatedOn": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["DRAFT", "PUBLISHED", "ARCHIVED"]
+    }
+  },
+  "required": [
+    "title",
+    "summary",
+    "type"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "PUBLISHED"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "categoryId",
+          "title",
+          "summary",
+          "showUnderDeveloperDocs",
+          "createdBy",
+          "updatedBy",
+          "status",
+          "isPublic",
+          "type"
+        ]
+      }
+    }
+  ],
+  "additionalProperties": false
+}
