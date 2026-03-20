@@ -765,4 +765,235 @@ class ContentPartnerServiceImplTest {
     }
 
 
+    // ========================= Cache Clearing Tests =========================
+
+    @Test
+    void testDelete_ShouldClearSearchCache() {
+        // Arrange
+        mockEntity = new ContentPartnerEntity();
+        mockEntity.setId("partner-123");
+        mockEntity.setIsActive(true);
+        mockEntity.setUpdatedOn(new Timestamp(System.currentTimeMillis()));
+
+        ObjectNode objectNode = realObjectMapper.createObjectNode();
+        objectNode.put(Constants.PARTNERCODE, "TEST123");
+        objectNode.put(Constants.IS_ACTIVE, true);
+        mockEntity.setData(objectNode);
+
+        when(entityRepository.findByIdAndIsActive("partner-123", true)).thenReturn(Optional.of(mockEntity));
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(Map.of(Constants.PARTNERCODE, "TEST123"));
+        when(cbServerProperties.getElasticContentJsonPath()).thenReturn("path/to/schema");
+        when(cbServerProperties.getContentPartnerDeleteTopic()).thenReturn("delete-topic");
+        when(redisTemplate.delete(anyString())).thenReturn(true);
+
+        // Act
+        ApiResponse response = contentPartnerService.delete("partner-123");
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+
+        // Verify cache clearing was called
+        verify(redisTemplate, times(1)).delete(anyString());
+
+        // Verify entity was saved with isActive=false
+        ArgumentCaptor<ContentPartnerEntity> entityCaptor = ArgumentCaptor.forClass(ContentPartnerEntity.class);
+        verify(entityRepository).save(entityCaptor.capture());
+        assertFalse(entityCaptor.getValue().getIsActive());
+
+        // Verify ES was updated
+        verify(esUtilService).addDocument(eq(Constants.CONTENT_PROVIDER_INDEX_NAME), eq(Constants.INDEX_TYPE),
+                eq("partner-123"), anyMap(), anyString());
+    }
+
+    @Test
+    void testActivate_ShouldClearSearchCache() {
+        // Arrange
+        ObjectNode requestNode = realObjectMapper.createObjectNode();
+        requestNode.put(Constants.PARTNER_ID, "partner-456");
+
+        mockEntity = new ContentPartnerEntity();
+        mockEntity.setId("partner-456");
+        mockEntity.setIsActive(false);
+
+        ObjectNode dataNode = realObjectMapper.createObjectNode();
+        dataNode.put(Constants.PARTNERCODE, "ACTIVE123");
+        dataNode.put(Constants.IS_ACTIVE, false);
+        mockEntity.setData(dataNode);
+
+        when(entityRepository.findByIdAndIsActive("partner-456", false)).thenReturn(Optional.of(mockEntity));
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(Map.of(Constants.PARTNERCODE, "ACTIVE123"));
+        when(cbServerProperties.getElasticContentJsonPath()).thenReturn("path/to/schema");
+        when(cbServerProperties.getContentPartnerActivateTopic()).thenReturn("activate-topic");
+        when(redisTemplate.delete(anyString())).thenReturn(true);
+
+        // Act
+        ApiResponse response = contentPartnerService.activate(requestNode);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+
+        // Verify cache clearing was called
+        verify(redisTemplate, times(1)).delete(anyString());
+
+        // Verify entity was saved with isActive=true
+        ArgumentCaptor<ContentPartnerEntity> entityCaptor = ArgumentCaptor.forClass(ContentPartnerEntity.class);
+        verify(entityRepository).save(entityCaptor.capture());
+        assertTrue(entityCaptor.getValue().getIsActive());
+
+        // Verify Kafka event was published
+        verify(kafkaProducer).push(eq("activate-topic"), anyMap());
+    }
+
+    @Test
+    void testActivate_WithNullPartnerId_ShouldReturnBadRequest() {
+        // Arrange
+        ObjectNode requestNode = realObjectMapper.createObjectNode();
+        // partnerId is null
+
+        // Act
+        ApiResponse response = contentPartnerService.activate(requestNode);
+
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertEquals(Constants.INVALID_ID, response.getParams().getErrMsg());
+
+        // Verify no cache clearing was attempted
+        verify(redisTemplate, never()).delete(anyString());
+    }
+
+    @Test
+    void testActivate_PartnerNotFound_ShouldReturnBadRequest() {
+        // Arrange
+        ObjectNode requestNode = realObjectMapper.createObjectNode();
+        requestNode.put(Constants.PARTNER_ID, "non-existent");
+
+        when(entityRepository.findByIdAndIsActive("non-existent", false)).thenReturn(Optional.empty());
+
+        // Act
+        ApiResponse response = contentPartnerService.activate(requestNode);
+
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+        assertEquals(Constants.CONTENT_PARTNER_NOT_FOUND, response.getParams().getErrMsg());
+
+        // Verify no cache clearing was attempted
+        verify(redisTemplate, never()).delete(anyString());
+    }
+
+    @Test
+    void testDelete_CacheKeyGeneration_MatchesSearchPattern() {
+        // Arrange
+        mockEntity = new ContentPartnerEntity();
+        mockEntity.setId("test-id");
+        mockEntity.setIsActive(true);
+
+        ObjectNode dataNode = realObjectMapper.createObjectNode();
+        dataNode.put(Constants.PARTNERCODE, "TEST");
+        mockEntity.setData(dataNode);
+
+        when(entityRepository.findByIdAndIsActive("test-id", true)).thenReturn(Optional.of(mockEntity));
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(Map.of(Constants.PARTNERCODE, "TEST"));
+        when(cbServerProperties.getElasticContentJsonPath()).thenReturn("path");
+        when(cbServerProperties.getContentPartnerDeleteTopic()).thenReturn("topic");
+        when(redisTemplate.delete(anyString())).thenReturn(true);
+
+        // Act
+        contentPartnerService.delete("test-id");
+
+        // Assert - Verify the cache key was generated and deleted
+        ArgumentCaptor<String> cacheKeyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(redisTemplate).delete(cacheKeyCaptor.capture());
+
+        String cacheKey = cacheKeyCaptor.getValue();
+        assertNotNull(cacheKey);
+        assertFalse(cacheKey.isEmpty());
+
+        // The cache key should be a JWT token (starts with eyJ)
+        assertTrue(cacheKey.startsWith("eyJ"), "Cache key should be a JWT token");
+    }
+
+    @Test
+    void testDelete_CacheClearingException_ShouldNotFailOperation() {
+        // Arrange
+        mockEntity = new ContentPartnerEntity();
+        mockEntity.setId("partner-789");
+        mockEntity.setIsActive(true);
+
+        ObjectNode dataNode = realObjectMapper.createObjectNode();
+        dataNode.put(Constants.PARTNERCODE, "FAIL123");
+        mockEntity.setData(dataNode);
+
+        when(entityRepository.findByIdAndIsActive("partner-789", true)).thenReturn(Optional.of(mockEntity));
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(Map.of(Constants.PARTNERCODE, "FAIL123"));
+        when(cbServerProperties.getElasticContentJsonPath()).thenReturn("path");
+        when(cbServerProperties.getContentPartnerDeleteTopic()).thenReturn("topic");
+        when(redisTemplate.delete(anyString())).thenThrow(new RuntimeException("Redis connection failed"));
+
+        // Act
+        ApiResponse response = contentPartnerService.delete("partner-789");
+
+        // Assert - Operation should still succeed even if cache clearing fails
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+
+        // Verify entity was still saved
+        verify(entityRepository).save(any(ContentPartnerEntity.class));
+        verify(esUtilService).addDocument(anyString(), anyString(), anyString(), anyMap(), anyString());
+    }
+
+    @Test
+    void testActivate_CacheClearingSuccess_ShouldLogCorrectly() {
+        // Arrange
+        ObjectNode requestNode = realObjectMapper.createObjectNode();
+        requestNode.put(Constants.PARTNER_ID, "partner-log-test");
+
+        mockEntity = new ContentPartnerEntity();
+        mockEntity.setId("partner-log-test");
+        mockEntity.setIsActive(false);
+
+        ObjectNode dataNode = realObjectMapper.createObjectNode();
+        dataNode.put(Constants.PARTNERCODE, "LOG123");
+        mockEntity.setData(dataNode);
+
+        when(entityRepository.findByIdAndIsActive("partner-log-test", false)).thenReturn(Optional.of(mockEntity));
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(Map.of(Constants.PARTNERCODE, "LOG123"));
+        when(cbServerProperties.getElasticContentJsonPath()).thenReturn("path");
+        when(cbServerProperties.getContentPartnerActivateTopic()).thenReturn("topic");
+        when(redisTemplate.delete(anyString())).thenReturn(true); // Successfully deleted
+
+        // Act
+        ApiResponse response = contentPartnerService.activate(requestNode);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(redisTemplate).delete(anyString());
+    }
+
+    @Test
+    void testActivate_NoCacheEntryToDelete_ShouldStillSucceed() {
+        // Arrange
+        ObjectNode requestNode = realObjectMapper.createObjectNode();
+        requestNode.put(Constants.PARTNER_ID, "partner-no-cache");
+
+        mockEntity = new ContentPartnerEntity();
+        mockEntity.setId("partner-no-cache");
+        mockEntity.setIsActive(false);
+
+        ObjectNode dataNode = realObjectMapper.createObjectNode();
+        dataNode.put(Constants.PARTNERCODE, "NOCACHE");
+        mockEntity.setData(dataNode);
+
+        when(entityRepository.findByIdAndIsActive("partner-no-cache", false)).thenReturn(Optional.of(mockEntity));
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(Map.of(Constants.PARTNERCODE, "NOCACHE"));
+        when(cbServerProperties.getElasticContentJsonPath()).thenReturn("path");
+        when(cbServerProperties.getContentPartnerActivateTopic()).thenReturn("topic");
+        when(redisTemplate.delete(anyString())).thenReturn(false); // No cache entry found
+
+        // Act
+        ApiResponse response = contentPartnerService.activate(requestNode);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(redisTemplate).delete(anyString());
+    }
 }
+

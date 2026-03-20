@@ -1,0 +1,47 @@
+{
+  "articleId": {
+    "type": "keyword"
+  },
+  "type": {
+    "type": "keyword"
+  },
+  "title": {
+    "type": "text"
+  },
+  "summary": {
+    "type": "text"
+  },
+  "content": {
+    "type": "text"
+  },
+  "tags": {
+    "type": "text"
+  },
+  "status": {
+    "type": "keyword"
+  },
+  "showUnderDeveloperDocs": {
+    "type": "boolean"
+  },
+  "categoryId": {
+    "type": "keyword"
+  },
+  "subCategoryId": {
+    "type": "keyword"
+  },
+  "createdBy": {
+    "type": "keyword"
+  },
+  "updatedBy": {
+    "type": "keyword"
+  },
+  "createdOn": {
+    "type": "date"
+  },
+  "updatedOn": {
+    "type": "date"
+  },
+  "isPublic": {
+    "type": "boolean"
+  }
+}
