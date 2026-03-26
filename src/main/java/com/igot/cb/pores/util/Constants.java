@@ -515,6 +515,7 @@ public class Constants {
     public static final String USER_DETAILS = "userDetails";
     public static final String CATEGORY_DETAILS = "categoryDetails";
     public static final String BASIC_PROFILE_CACHE_PREFIX = Constants.USER + ":basicProfile:";
+    public static final String STATE_ADMIN = "STATE_ADMIN";
     public static final String BADGE_DETAILS_V1 = "badgeDetails_v1";
 
 
