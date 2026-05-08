@@ -22,8 +22,6 @@ import com.igot.cb.pores.util.Constants;
 import com.igot.cb.pores.util.PayloadValidation;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -31,7 +29,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.ObjectUtils;
 import com.igot.cb.producer.Producer;
-
+import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -61,10 +59,11 @@ public class ContentPartnerServiceImpl implements ContentPartnerService {
     @Autowired
     private Producer kafkaProducer;
 
+    @Autowired
+    private SecureRandom secureRandom;
+
     @Value("${search.result.redis.ttl}")
     private long searchResultRedisTtl;
-
-    private Logger logger = LoggerFactory.getLogger(ContentPartnerServiceImpl.class);
 
     @Override
     public ApiResponse createOrUpdate(JsonNode partnerDetails) {
@@ -106,7 +105,7 @@ public class ContentPartnerServiceImpl implements ContentPartnerService {
             String newPartnerName = partnerDetails.path(Constants.DATA).path(Constants.CONTENT_PARTNER_NAME).asText();
             String newPartnerCode = null;
             if (!oldPartnerName.equalsIgnoreCase(newPartnerName)) {
-                newPartnerCode = generatePartnerCode(newPartnerName, jsonEntity.getId());
+                newPartnerCode = generatePartnerCode(newPartnerName);
                 ((ObjectNode) partnerDetails.path(Constants.DATA)).put(Constants.PARTNERCODE, newPartnerCode);
             }
             createContentPartnerEntity(jsonEntity, partnerDetails);
@@ -198,7 +197,7 @@ public class ContentPartnerServiceImpl implements ContentPartnerService {
             payloadValidation.validatePayload(Constants.CONTENT_PARTNER_FILE_JSON, partnerDetails);
         } else {
             id = UUID.randomUUID().toString();
-            partnerCode = generatePartnerCode(partnerName,id);
+            partnerCode = generatePartnerCode(partnerName);
             payloadValidation.validatePayload(Constants.PAYLOAD_VALIDATION_FILE_CONTENT_PROVIDER, partnerDetails);
         }
         Optional<ContentPartnerEntity> existingByName = entityRepository.findByContentPartnerName(partnerName);
@@ -249,11 +248,15 @@ public class ContentPartnerServiceImpl implements ContentPartnerService {
         response.setResponseCode(HttpStatus.OK);
         return response;
     }
-    private String generatePartnerCode(String partnerName, String id) {
+
+    private String generatePartnerCode(String partnerName) {
         String firstWord = partnerName.trim().split("\\s+")[0].toUpperCase().replaceAll("[^A-Z]", "");
         String partnerCode;
         do {
-            String randomCode = id.replace("-", "").substring(0, 5).toUpperCase();
+            StringBuilder randomCode = new StringBuilder(5);
+            for (int i = 0; i < 5; i++) {
+                randomCode.append(cbServerProperties.getPartnerCodeChar().charAt(secureRandom.nextInt(cbServerProperties.getPartnerCodeChar().length())));
+            }
             partnerCode = Constants.APPLICATION_ID_PREFIX + firstWord + "-" + randomCode;
         } while (entityRepository.findByPartnerCode(partnerCode).isPresent());
         return partnerCode;
@@ -359,7 +362,7 @@ public class ContentPartnerServiceImpl implements ContentPartnerService {
             response.setResult(jsonMap);
             response.setResponseCode(HttpStatus.OK);
         } catch (Exception e) {
-            logger.error("Error while processing to search", e);
+            log.error("Error while processing to search", e);
             response.getParams().setErrMsg(e.getMessage());
             response.getParams().setStatus(Constants.FAILED);
             response.setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR);

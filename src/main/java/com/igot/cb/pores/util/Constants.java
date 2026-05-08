@@ -518,7 +518,6 @@ public class Constants {
     public static final String STATE_ADMIN = "STATE_ADMIN";
     public static final String BADGE_DETAILS_V1 = "badgeDetails_v1";
 
-
     private Constants() {
     }
 }

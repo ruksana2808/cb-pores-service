@@ -13,6 +13,7 @@ import com.igot.cb.pores.util.CbServerProperties;
 import com.igot.cb.pores.util.Constants;
 import com.igot.cb.pores.util.PayloadValidation;
 
+import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.util.HashMap;
 import java.util.Map;
@@ -36,6 +37,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.when;
 import com.igot.cb.producer.Producer;
+import java.security.SecureRandom;
 
 @ExtendWith(MockitoExtension.class)
 class ContentPartnerServiceImplTest {
@@ -70,6 +72,9 @@ class ContentPartnerServiceImplTest {
     @Mock
     private Producer kafkaProducer;
 
+    @Mock
+    private SecureRandom secureRandom;
+
     private ObjectMapper realObjectMapper = new ObjectMapper();
 
     private ContentPartnerEntity mockEntity;
@@ -88,6 +93,9 @@ class ContentPartnerServiceImplTest {
         partnerDetails.put(Constants.CONTENT_PARTNER_NAME, "ExistingPartner");
 
         ContentPartnerEntity existingEntity = new ContentPartnerEntity();
+        when(cbServerProperties.getPartnerCodeChar()).thenReturn("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+        when(secureRandom.nextInt(anyInt())).thenReturn(0);
+        when(entityRepository.findByPartnerCode(anyString())).thenReturn(Optional.empty());
         when(entityRepository.findByContentPartnerName("ExistingPartner")).thenReturn(Optional.of(existingEntity));
 
         // Act
@@ -141,6 +149,9 @@ class ContentPartnerServiceImplTest {
 
         when(entityRepository.findByContentPartnerName("TestPartner"))
                 .thenReturn(Optional.of(new ContentPartnerEntity()));
+        when(cbServerProperties.getPartnerCodeChar()).thenReturn("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+        when(secureRandom.nextInt(anyInt())).thenReturn(0);
+        when(entityRepository.findByPartnerCode(anyString())).thenReturn(Optional.empty());
 
         ApiResponse response = contentPartnerService.createOrUpdate(partnerDetails);
 
@@ -162,6 +173,9 @@ class ContentPartnerServiceImplTest {
         ContentPartnerEntity existingEntity = new ContentPartnerEntity();
         existingEntity.setId("existingId");
 
+        when(cbServerProperties.getPartnerCodeChar()).thenReturn("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+        when(secureRandom.nextInt(anyInt())).thenReturn(0);
+        when(entityRepository.findByPartnerCode(anyString())).thenReturn(Optional.empty());
         when(entityRepository.findByContentPartnerName("ExistingPartner")).thenReturn(Optional.of(existingEntity));
 
         ApiResponse response = contentPartnerService.createOrUpdate(partnerDetails);
@@ -215,6 +229,9 @@ class ContentPartnerServiceImplTest {
         ContentPartnerEntity existingEntity = new ContentPartnerEntity();
         existingEntity.setId("existingId");
 
+        when(cbServerProperties.getPartnerCodeChar()).thenReturn("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+        when(secureRandom.nextInt(anyInt())).thenReturn(0);
+        when(entityRepository.findByPartnerCode(anyString())).thenReturn(Optional.empty());
         when(entityRepository.findByContentPartnerName("ExistingPartner")).thenReturn(Optional.of(existingEntity));
 
         ApiResponse response = contentPartnerService.createOrUpdate(partnerDetails);
@@ -512,6 +529,8 @@ class ContentPartnerServiceImplTest {
         input.put(Constants.CONTENT_PARTNER_NAME, "TestPartner");
 
         when(entityRepository.findByContentPartnerName("TestPartner")).thenReturn(Optional.empty());
+        when(cbServerProperties.getPartnerCodeChar()).thenReturn("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+        when(secureRandom.nextInt(anyInt())).thenReturn(0);
         when(entityRepository.findByPartnerCode(anyString())).thenReturn(Optional.empty());
 
         ContentPartnerEntity savedEntity = new ContentPartnerEntity();
@@ -557,6 +576,9 @@ class ContentPartnerServiceImplTest {
         ContentPartnerEntity existingEntity = new ContentPartnerEntity();
         existingEntity.setId("existing-id");
 
+        when(cbServerProperties.getPartnerCodeChar()).thenReturn("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+        when(secureRandom.nextInt(anyInt())).thenReturn(0);
+        when(entityRepository.findByPartnerCode(anyString())).thenReturn(Optional.empty());
         when(entityRepository.findByContentPartnerName("ExistingPartner")).thenReturn(Optional.of(existingEntity));
 
         // Act
@@ -593,6 +615,8 @@ class ContentPartnerServiceImplTest {
         ObjectNode input = realObjectMapper.createObjectNode();
         input.put(Constants.CONTENT_PARTNER_NAME, "New Partner");
         when(entityRepository.findByContentPartnerName("New Partner")).thenReturn(Optional.empty());
+        when(cbServerProperties.getPartnerCodeChar()).thenReturn("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+        when(secureRandom.nextInt(anyInt())).thenReturn(0);
         when(entityRepository.findByPartnerCode(anyString())).thenReturn(Optional.empty());
         ContentPartnerEntity savedEntity = new ContentPartnerEntity();
         savedEntity.setId("auto-generated-uuid");
@@ -617,6 +641,8 @@ class ContentPartnerServiceImplTest {
         ObjectNode input = realObjectMapper.createObjectNode();
         input.put(Constants.CONTENT_PARTNER_NAME, "TestPartner");
         when(entityRepository.findByContentPartnerName("TestPartner")).thenReturn(Optional.empty());
+        when(cbServerProperties.getPartnerCodeChar()).thenReturn("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+        when(secureRandom.nextInt(anyInt())).thenReturn(0);
         // First call returns existing, second call returns empty (code is unique)
         when(entityRepository.findByPartnerCode(anyString()))
                 .thenReturn(Optional.of(new ContentPartnerEntity()))
@@ -734,6 +760,9 @@ class ContentPartnerServiceImplTest {
 
         when(entityRepository.findById("id-123")).thenReturn(Optional.of(existing));
         when(entityRepository.findByContentPartnerName("UpdatedName")).thenReturn(Optional.empty());
+        when(cbServerProperties.getPartnerCodeChar()).thenReturn("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+        when(secureRandom.nextInt(anyInt())).thenReturn(0);
+        when(entityRepository.findByPartnerCode(anyString())).thenReturn(Optional.empty());
 
         ContentPartnerEntity saved = new ContentPartnerEntity();
         saved.setId("id-123");
@@ -966,6 +995,83 @@ class ContentPartnerServiceImplTest {
         // Assert
         assertEquals(HttpStatus.OK, response.getResponseCode());
         verify(redisTemplate).delete(anyString());
+    }
+
+    @Test
+    void testGeneratePartnerCode_PartnerNameWithSpaces() throws Exception {
+        ObjectNode input = realObjectMapper.createObjectNode();
+        input.put(Constants.CONTENT_PARTNER_NAME, "  SpacedPartner  ");
+
+        when(entityRepository.findByContentPartnerName("  SpacedPartner  ")).thenReturn(Optional.empty());
+        when(entityRepository.findByPartnerCode(anyString())).thenReturn(Optional.empty());
+        when(cbServerProperties.getPartnerCodeChar()).thenReturn("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+        when(secureRandom.nextInt(anyInt())).thenReturn(0);
+
+        ContentPartnerEntity savedEntity = new ContentPartnerEntity();
+        savedEntity.setId("uuid-spaced");
+        savedEntity.setData(input);
+        when(entityRepository.save(any(ContentPartnerEntity.class))).thenReturn(savedEntity);
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(cbServerProperties.getElasticContentJsonPath()).thenReturn("path");
+
+        ApiResponse response = contentPartnerService.createContentPartner(input);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        // Verify partner code was generated (findByPartnerCode called at least once)
+        verify(entityRepository, atLeastOnce()).findByPartnerCode(anyString());
+    }
+
+    @Test
+    void testGeneratePartnerCode_NonAlphaPartnerName() throws Exception {
+        ObjectNode input = realObjectMapper.createObjectNode();
+        input.put(Constants.CONTENT_PARTNER_NAME, "123 456");
+
+        when(entityRepository.findByContentPartnerName("123 456")).thenReturn(Optional.empty());
+        when(entityRepository.findByPartnerCode(anyString())).thenReturn(Optional.empty());
+        when(cbServerProperties.getPartnerCodeChar()).thenReturn("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+        when(secureRandom.nextInt(anyInt())).thenReturn(0);
+
+        ContentPartnerEntity savedEntity = new ContentPartnerEntity();
+        savedEntity.setId("uuid-nonalpha");
+        savedEntity.setData(input);
+        when(entityRepository.save(any(ContentPartnerEntity.class))).thenReturn(savedEntity);
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(cbServerProperties.getElasticContentJsonPath()).thenReturn("path");
+
+        ApiResponse response = contentPartnerService.createContentPartner(input);
+
+        // Should still succeed even when firstWord is empty
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(entityRepository, atLeastOnce()).findByPartnerCode(anyString());
+    }
+
+    @Test
+    void testGeneratePartnerCode_MultipleCollisionsBeforeUniqueCode() throws Exception {
+        ObjectNode input = realObjectMapper.createObjectNode();
+        input.put(Constants.CONTENT_PARTNER_NAME, "TestPartner");
+
+        when(entityRepository.findByContentPartnerName("TestPartner")).thenReturn(Optional.empty());
+        // First 3 calls return existing entity, 4th returns empty (unique)
+        when(entityRepository.findByPartnerCode(anyString()))
+                .thenReturn(Optional.of(new ContentPartnerEntity()))
+                .thenReturn(Optional.of(new ContentPartnerEntity()))
+                .thenReturn(Optional.of(new ContentPartnerEntity()))
+                .thenReturn(Optional.empty());
+        when(cbServerProperties.getPartnerCodeChar()).thenReturn("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+        when(secureRandom.nextInt(anyInt())).thenReturn(0);
+
+        ContentPartnerEntity savedEntity = new ContentPartnerEntity();
+        savedEntity.setId("uuid-retry");
+        savedEntity.setData(input);
+        when(entityRepository.save(any(ContentPartnerEntity.class))).thenReturn(savedEntity);
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(cbServerProperties.getElasticContentJsonPath()).thenReturn("path");
+
+        ApiResponse response = contentPartnerService.createContentPartner(input);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        // Verify findByPartnerCode was called exactly 4 times (3 collisions + 1 unique)
+        verify(entityRepository, times(4)).findByPartnerCode(anyString());
     }
 
     @Test

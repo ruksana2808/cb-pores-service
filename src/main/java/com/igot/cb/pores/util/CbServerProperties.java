@@ -70,6 +70,9 @@ public class CbServerProperties {
   @Value("${non.text.fields}")
   private List<String> nonTextFields;
 
+  @Value("${partner.code.characters}")
+  private String partnerCodeChar;
+
   public List<String> getBookmarkDuplicateNotAllowedCategory() {
     return Arrays.asList(bookmarkDuplicateNotAllowedCategory.split(","));
   }
