@@ -100,14 +100,7 @@ public class ContentPartnerServiceImpl implements ContentPartnerService {
                 return response;
             }
             ContentPartnerEntity jsonEntity = content.get();
-            String oldPartnerCode = jsonEntity.getData().path(Constants.PARTNERCODE).asText();
-            String oldPartnerName = jsonEntity.getData().path(Constants.CONTENT_PARTNER_NAME).asText();
-            String newPartnerName = partnerDetails.path(Constants.DATA).path(Constants.CONTENT_PARTNER_NAME).asText();
-            String newPartnerCode = null;
-            if (!oldPartnerName.equalsIgnoreCase(newPartnerName)) {
-                newPartnerCode = generatePartnerCode(newPartnerName);
-                ((ObjectNode) partnerDetails.path(Constants.DATA)).put(Constants.PARTNERCODE, newPartnerCode);
-            }
+            String partnerCode = jsonEntity.getData().path(Constants.PARTNERCODE).asText();
             createContentPartnerEntity(jsonEntity, partnerDetails);
             ContentPartnerEntity updateJsonEntity = entityRepository.save(jsonEntity);
             if (!ObjectUtils.isEmpty(updateJsonEntity)) {
@@ -119,13 +112,8 @@ public class ContentPartnerServiceImpl implements ContentPartnerService {
 
                 if (jsonMap != null && StringUtils.isNotBlank((String) jsonMap.get(Constants.PARTNERCODE))) {
                     log.info(Constants.CONTENT_PARTNER_UPDATE_CACHE_DELETE, jsonMap.get(Constants.PARTNERCODE));
-                    //  delete OLD partnerCode cache
-                    if (StringUtils.isNotBlank(oldPartnerCode)) {
-                        cacheService.deleteCache(oldPartnerCode);
-                    }
-                    // delete NEW partnerCode cache
-                    if (StringUtils.isNotBlank(newPartnerCode)) {
-                        cacheService.deleteCache(newPartnerCode);
+                    if (StringUtils.isNotBlank(partnerCode)) {
+                        cacheService.deleteCache(partnerCode);
                     }
                     cacheService.deleteCache(updateJsonEntity.getId());
                     // Clear search-related Redis cache
