@@ -174,7 +174,7 @@ public class EsUtilServiceImpl implements EsUtilService {
             searchResult.setTotalCount(paginatedSearchResponse.hits().total().value());
             return searchResult;
         } catch (IOException e) {
-            log.error("Error while fetching details from elastic search");
+            log.error("Error while fetching details from elastic search {}", e.getMessage());
             return null;
         }
     }
@@ -343,9 +343,6 @@ public class EsUtilServiceImpl implements EsUtilService {
             // Get all fields in response
             searchRequestBuilder.source(SourceConfig.of(sc -> sc.fetch(true)));
         } else {
-            if (searchCriteria.getRequestedFields().isEmpty()) {
-                log.error("Please specify at least one field to include in the results.");
-            }
             searchRequestBuilder.source(SourceConfig.of(sc -> sc.filter(filter -> filter.includes(searchCriteria.getRequestedFields()))));
         }
     }

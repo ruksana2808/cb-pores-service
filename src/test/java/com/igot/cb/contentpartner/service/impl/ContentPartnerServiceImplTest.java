@@ -760,9 +760,6 @@ class ContentPartnerServiceImplTest {
 
         when(entityRepository.findById("id-123")).thenReturn(Optional.of(existing));
         when(entityRepository.findByContentPartnerName("UpdatedName")).thenReturn(Optional.empty());
-        when(cbServerProperties.getPartnerCodeChar()).thenReturn("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
-        when(secureRandom.nextInt(anyInt())).thenReturn(0);
-        when(entityRepository.findByPartnerCode(anyString())).thenReturn(Optional.empty());
 
         ContentPartnerEntity saved = new ContentPartnerEntity();
         saved.setId("id-123");
