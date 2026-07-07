@@ -33,6 +33,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
+import java.util.concurrent.TimeUnit;
 
 import java.sql.Timestamp;
 import java.util.*;
@@ -82,6 +85,12 @@ class DemandServiceImplMethodTest {
     @Mock
     private EsUtilService esUtilService;
 
+    @Mock
+    private RedisTemplate<String, String> redisTemplateString;
+
+    @Mock
+    private ValueOperations<String, String> valueOperationsString;
+
     @BeforeEach
     void setup() throws Exception {
         // Create instance without calling constructor
@@ -98,9 +107,13 @@ class DemandServiceImplMethodTest {
         ReflectionTestUtils.setField(demandService, "requestHandlerService", requestHandlerService);
         ReflectionTestUtils.setField(demandService, "cbServerProperties", cbServerProperties);
         ReflectionTestUtils.setField(demandService, "propertiesConfig", propertiesConfig);
+        ReflectionTestUtils.setField(demandService, "redisTemplateString", redisTemplateString);
+        ReflectionTestUtils.setField(demandService, "esUtilService", esUtilService);
         ReflectionTestUtils.setField(demandService, "logger", LoggerFactory.getLogger(DemandServiceImpl.class));
         // Mock statusTransitionConfig to avoid file read
         ReflectionTestUtils.setField(demandService, "statusTransitionConfig", mock(StatusTransitionConfig.class));
+
+        lenient().when(redisTemplateString.opsForValue()).thenReturn(valueOperationsString);
     }
 
     @Test
@@ -626,6 +639,113 @@ class DemandServiceImplMethodTest {
         // Assert
         assertNotNull(response);
         assertEquals(HttpStatus.BAD_REQUEST, response.getResponseCode());
+    }
+
+    @Test
+    void createDemand_shouldReturn429_whenRateLimitExceeded() {
+        String token = "sample-token";
+        String rootOrgId = "root-org";
+        String userId = "user-123";
+
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode demandDetails = mapper.createObjectNode();
+        demandDetails.put(Constants.REQUEST_TYPE, Constants.SINGLE);
+        demandDetails.put(Constants.TITLE, "Test Demand");
+        demandDetails.put("objective", "objective");
+
+        when(accessTokenValidator.verifyUserToken(token)).thenReturn(userId);
+        when(valueOperationsString.get(anyString())).thenReturn("100");
+        when(cbServerProperties.getMaxDemandCreateByUser()).thenReturn(100);
+
+        CustomResponse response = demandService.createDemand(demandDetails, token, rootOrgId);
+
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, response.getResponseCode());
+        assertEquals(Constants.RATE_LIMIT_EXCEEDED, response.getParams().getErrmsg());
+    }
+
+    @Test
+    void createDemand_shouldIncrementRedis_whenRateLimitAllowed() throws Exception {
+        String token = "sample-token";
+        String rootOrgId = "root-org";
+        String userId = "user-123";
+        String demandId = "12345";
+        String requestType = Constants.SINGLE;
+        String firstName = "John";
+        String orgName = "Sample Org";
+
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode demandDetails = mapper.createObjectNode();
+        demandDetails.put(Constants.REQUEST_TYPE, requestType);
+        demandDetails.put(Constants.TITLE, "Test Demand");
+        demandDetails.put("objective", "objective");
+        demandDetails.put(Constants.DEMAND_ID, "objective");
+
+        when(accessTokenValidator.verifyUserToken(token)).thenReturn(userId);
+        when(valueOperationsString.get(anyString())).thenReturn("5");
+        when(cbServerProperties.getMaxDemandCreateByUser()).thenReturn(10);
+        when(cbServerProperties.getMaxDemandCreateByUserTtl()).thenReturn(3600);
+
+        // Mock cassandra user validation
+        Map<String, Object> userDetailMap = Map.of(Constants.USER_ROOT_ORG_ID, rootOrgId, Constants.FIRST_NAME, firstName);
+        when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(
+                eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.TABLE_USER), anyMap(), anyList(), eq(2)))
+                .thenReturn(List.of(userDetailMap));
+
+        // Mock org details
+        Map<String, Object> orgDetail = Map.of(Constants.USER_ROOT_ORG_NAME, orgName);
+        when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(
+                eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.ORG_TABLE), anyMap(), isNull(), eq(1)))
+                .thenReturn(List.of(orgDetail));
+
+        // Mock repository
+        when(demandRepository.count()).thenReturn(0L);
+        when(demandRepository.existsById(anyString())).thenReturn(false);
+
+        ArgumentCaptor<DemandEntity> captor = ArgumentCaptor.forClass(DemandEntity.class);
+        when(demandRepository.save(captor.capture())).thenAnswer(invocation -> {
+            DemandEntity entity = invocation.getArgument(0);
+            entity.setDemandId(demandId);
+            return entity;
+        });
+
+        String requiredRole = "SOME_ROLE";
+        Map<String, String> header = new HashMap<>();
+
+        when(propertiesConfig.getSbUrl()).thenReturn("https://mock-url/");
+        when(propertiesConfig.getUserReadEndPoint()).thenReturn("user/v1/read/");
+
+        String finalUrl = "https://mock-url/user/v1/read/" + userId;
+
+        List<String> rolesList = List.of(requiredRole);
+        Map<String, Object> responseMap = Map.of(Constants.ROLES, rolesList);
+        Map<String, Object> resultMap = Map.of(Constants.RESPONSE, responseMap);
+        Map<String, Object> readData = Map.of(Constants.RESULT, resultMap);
+
+        when(requestHandlerService.fetchUsingGetWithHeadersProfile(eq(finalUrl), eq(header)))
+                .thenReturn(readData);
+
+        when(cbServerProperties.getElasticDemandJsonPath()).thenReturn("dummy/elastic/path.json");
+        when(esUtilService.addDocument(anyString(), anyString(), anyString(), anyMap(), anyString())).thenReturn("");
+
+        Map<String, Object> learnerResp = Map.of(
+                Constants.RESPONSE_CODE, Constants.OK,
+                Constants.RESULT, Map.of(Constants.RESPONSE, Map.of(Constants.CONTENT, List.of(Map.of(Constants.ROOT_ORG_ID, rootOrgId))))
+        );
+        when(requestHandlerService.fetchResultUsingPost(anyString(), anyMap(), anyMap())).thenReturn(learnerResp);
+
+        when(cbServerProperties.getElasticDemandJsonPath()).thenReturn("dummy/path");
+        when(cbServerProperties.getDemandRequestKafkaTopic()).thenReturn("demand-topic");
+        when(cbServerProperties.getSbApiKey()).thenReturn("dummy-api-key");
+        when(cbServerProperties.getLearnerServiceUrl()).thenReturn("http://dummy.url");
+        when(cbServerProperties.getOrgSearchPath()).thenReturn("/org/search");
+
+        when(valueOperationsString.increment(anyString(), eq(1L))).thenReturn(1L);
+
+        CustomResponse response = demandService.createDemand(demandDetails, token, rootOrgId);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(valueOperationsString, times(1)).increment(anyString(), eq(1L));
+        verify(redisTemplateString, times(1)).expire(anyString(), eq(3600L), eq(TimeUnit.SECONDS));
     }
 
 }

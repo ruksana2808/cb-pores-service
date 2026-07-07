@@ -13,6 +13,8 @@ import com.igot.cb.transactional.service.RequestHandlerServiceImpl;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
@@ -45,6 +47,18 @@ class NotificationConsumerTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private ConsumerRecord<String, String> record;
+    private static ClassLoader originalClassLoader;
+
+    @BeforeAll
+    static void beforeAll() {
+        originalClassLoader = Thread.currentThread().getContextClassLoader();
+        Thread.currentThread().setContextClassLoader(NotificationConsumer.class.getClassLoader());
+    }
+
+    @AfterAll
+    static void afterAll() {
+        Thread.currentThread().setContextClassLoader(NotificationConsumer.class.getClassLoader());
+    }
 
     @BeforeEach
     void setUp() throws Exception {
@@ -64,17 +78,8 @@ class NotificationConsumerTest {
                         any(), any(), any(), isNull(), anyInt()))
                 .thenReturn(List.of(Map.of(Constants.USER_ROOT_ORG_NAME, "OrgName")));
 
-        try (MockedStatic<CompletableFuture> mock = mockStatic(CompletableFuture.class)) {
-            mock.when(() -> CompletableFuture.runAsync(any(Runnable.class)))
-                    .thenAnswer(invocation -> {
-                        Runnable runnable = invocation.getArgument(0);
-                        runnable.run();
-                        return CompletableFuture.completedFuture(null);
-                    });
-            assertDoesNotThrow(() -> notificationConsumer.demandContentConsumer(record));
-
-            notificationConsumer.demandContentConsumer(record);
-        }
+        assertDoesNotThrow(() -> notificationConsumer.demandContentConsumer(record));
+        verify(cassandraOperation, timeout(3000).atLeastOnce()).getRecordsByPropertiesWithoutFiltering(any(), any(), any(), isNull(), anyInt());
     }
 
     @Test
@@ -409,20 +414,12 @@ class NotificationConsumerTest {
         when(cbServerProperties.getNotificationAsyncPath()).thenReturn("/v1/notify");
 
 
-        try (MockedStatic<CompletableFuture> mockStatic = mockStatic(CompletableFuture.class)) {
-            mockStatic.when(() -> CompletableFuture.runAsync(any(Runnable.class)))
-                    .thenAnswer(invocation -> {
-                        Runnable runnable = invocation.getArgument(0);
-                        runnable.run(); // run synchronously
-                        return CompletableFuture.completedFuture(null);
-                    });
-            // When
-            notificationConsumer.demandContentConsumer(record);
-            verify(requestHandlerService, atLeastOnce())
-                    .fetchResultUsingPost(anyString(), anyMap(), any());
-            verify(requestHandlerService, atLeastOnce())
-                    .fetchResultUsingPost(anyString(), anyMap(), any());
-        }
+        // When
+        notificationConsumer.demandContentConsumer(record);
+
+        // Then
+        verify(requestHandlerService, timeout(3000).atLeastOnce())
+                .fetchResultUsingPost(anyString(), anyMap(), any());
     }
 
 

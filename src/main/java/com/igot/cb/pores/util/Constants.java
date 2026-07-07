@@ -54,6 +54,8 @@ public class Constants {
     public static final String FAILED_CONST = "FAILED";
     public static final String ERROR = "ERROR";
     public static final String REDIS_KEY_PREFIX = "cbpores_";
+    public static final String DEMAND_CREATE_RATE_LIMIT_PREFIX = "demand_create_rate_limit_";
+    public static final String RATE_LIMIT_EXCEEDED = "Rate limit exceeded. Too many requests.";
     public static final String KEYWORD = ".keyword";
     public static final String ASC = "asc";
     public static final String REQUEST_PAYLOAD = "requestPayload";

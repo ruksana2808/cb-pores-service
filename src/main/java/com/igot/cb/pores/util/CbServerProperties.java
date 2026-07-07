@@ -195,6 +195,12 @@ public class CbServerProperties {
     @Value("${search.fields.with.boost}")
     private String searchFieldsWithBoost;
 
+    @Value("${max.demand.create.byuser:100}")
+    private int maxDemandCreateByUser;
+
+    @Value("${max.demand.create.byuser.ttl:3600}")
+    private int maxDemandCreateByUserTtl;
+
     public List<String> getOrgHierarchyCreateRequiredRoles() {
       return Arrays.asList(orgHierarchyCreateRoles.split(","));
     }

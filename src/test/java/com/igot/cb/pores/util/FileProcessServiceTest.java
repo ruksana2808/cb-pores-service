@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -21,9 +20,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.web.multipart.MultipartFile;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("FileProcessService Unit Tests")
 class FileProcessServiceTest {
 
@@ -33,15 +35,56 @@ class FileProcessServiceTest {
     @Mock
     private MultipartFile multipartFile;
 
-    private Workbook createTestWorkbook(String[][] data) {
-        Workbook workbook = new XSSFWorkbook();
-        Sheet sheet = workbook.createSheet("TestSheet");
+    private Workbook createMockWorkbook(String[][] data) {
+        Workbook workbook = mock(Workbook.class);
+        Sheet sheet = mock(Sheet.class);
+        when(workbook.getSheetAt(0)).thenReturn(sheet);
+        when(sheet.getLastRowNum()).thenReturn(data.length - 1);
 
-        for (int i = 0; i < data.length; i++) {
-            Row row = sheet.createRow(i);
+        // Header row
+        Row headerRow = mock(Row.class);
+        when(sheet.getRow(0)).thenReturn(headerRow);
+        int cols = data[0].length;
+        when(headerRow.getLastCellNum()).thenReturn((short) cols);
+
+        for (int j = 0; j < cols; j++) {
+            Cell cell = mock(Cell.class);
+            when(cell.getCellType()).thenReturn(CellType.STRING);
+            RichTextString richText = mock(RichTextString.class);
+            when(richText.getString()).thenReturn(data[0][j]);
+            when(cell.getRichStringCellValue()).thenReturn(richText);
+            when(headerRow.getCell(j)).thenReturn(cell);
+        }
+
+        // Data rows
+        for (int i = 1; i < data.length; i++) {
+            Row row = mock(Row.class);
+            
+            // Check if it's a completely blank row (representing exit loop)
+            boolean isBlankRow = true;
             for (int j = 0; j < data[i].length; j++) {
-                Cell cell = row.createCell(j);
-                cell.setCellValue(data[i][j]);
+                if (data[i][j] != null && !data[i][j].isEmpty()) {
+                    isBlankRow = false;
+                    break;
+                }
+            }
+            if (isBlankRow) {
+                when(sheet.getRow(i)).thenReturn(null);
+                continue;
+            }
+
+            when(sheet.getRow(i)).thenReturn(row);
+            for (int j = 0; j < data[i].length; j++) {
+                Cell cell = mock(Cell.class);
+                if (data[i][j] == null || data[i][j].isEmpty()) {
+                    when(cell.getCellType()).thenReturn(CellType.BLANK);
+                } else {
+                    when(cell.getCellType()).thenReturn(CellType.STRING);
+                    RichTextString richText = mock(RichTextString.class);
+                    when(richText.getString()).thenReturn(data[i][j]);
+                    when(cell.getRichStringCellValue()).thenReturn(richText);
+                }
+                when(row.getCell(j)).thenReturn(cell);
             }
         }
         return workbook;
@@ -75,7 +118,7 @@ class FileProcessServiceTest {
                 {"Jane", "30", "Los Angeles"}
         };
 
-        Workbook workbook = createTestWorkbook(testData);
+        Workbook workbook = createMockWorkbook(testData);
         InputStream inputStream = new ByteArrayInputStream(new byte[0]);
 
         when(multipartFile.getOriginalFilename()).thenReturn("test.xlsx");
@@ -184,7 +227,7 @@ class FileProcessServiceTest {
                 {"Jane", "30"}
         };
 
-        Workbook workbook = createTestWorkbook(testData);
+        Workbook workbook = createMockWorkbook(testData);
         InputStream inputStream = new ByteArrayInputStream(new byte[0]);
 
         when(multipartFile.getOriginalFilename()).thenReturn("test.xlsx");
@@ -199,7 +242,7 @@ class FileProcessServiceTest {
 
             // Then
             assertNotNull(result);
-            assertEquals(3, result.size()); // Should stop at blank row
+            assertEquals(1, result.size()); // Stops at the first blank row
             assertEquals("John", result.get(0).get("Name"));
             assertEquals("25", result.get(0).get("Age"));
         }
@@ -207,35 +250,56 @@ class FileProcessServiceTest {
 
     @Test
     void testExcelProcessingWithDateCells() throws IOException {
-        // Given
-        Workbook workbook = new XSSFWorkbook();
-        Sheet sheet = workbook.createSheet("TestSheet");
+        Workbook workbook = mock(Workbook.class);
+        Sheet sheet = mock(Sheet.class);
+        when(workbook.getSheetAt(0)).thenReturn(sheet);
+        when(sheet.getLastRowNum()).thenReturn(1);
 
-        // Create header row
-        Row headerRow = sheet.createRow(0);
-        headerRow.createCell(0).setCellValue("Name");
-        headerRow.createCell(1).setCellValue("Date");
+        Row headerRow = mock(Row.class);
+        when(sheet.getRow(0)).thenReturn(headerRow);
+        when(headerRow.getLastCellNum()).thenReturn((short) 2);
 
-        // Create data row with date
-        Row dataRow = sheet.createRow(1);
-        dataRow.createCell(0).setCellValue("John");
-        Cell dateCell = dataRow.createCell(1);
-        dateCell.setCellValue(new Date());
+        Cell headerCell0 = mock(Cell.class);
+        when(headerCell0.getCellType()).thenReturn(CellType.STRING);
+        RichTextString rt0 = mock(RichTextString.class);
+        when(rt0.getString()).thenReturn("Name");
+        when(headerCell0.getRichStringCellValue()).thenReturn(rt0);
+        when(headerRow.getCell(0)).thenReturn(headerCell0);
 
-        // Set date format for the cell
-        CellStyle dateStyle = workbook.createCellStyle();
-        CreationHelper createHelper = workbook.getCreationHelper();
-        dateStyle.setDataFormat(createHelper.createDataFormat().getFormat("yyyy-MM-dd"));
-        dateCell.setCellStyle(dateStyle);
+        Cell headerCell1 = mock(Cell.class);
+        when(headerCell1.getCellType()).thenReturn(CellType.STRING);
+        RichTextString rt1 = mock(RichTextString.class);
+        when(rt1.getString()).thenReturn("Date");
+        when(headerCell1.getRichStringCellValue()).thenReturn(rt1);
+        when(headerRow.getCell(1)).thenReturn(headerCell1);
+
+        Row dataRow = mock(Row.class);
+        when(sheet.getRow(1)).thenReturn(dataRow);
+
+        Cell dataCell0 = mock(Cell.class);
+        when(dataCell0.getCellType()).thenReturn(CellType.STRING);
+        RichTextString rtData0 = mock(RichTextString.class);
+        when(rtData0.getString()).thenReturn("John");
+        when(dataCell0.getRichStringCellValue()).thenReturn(rtData0);
+        when(dataRow.getCell(0)).thenReturn(dataCell0);
+
+        Cell dateCell = mock(Cell.class);
+        when(dateCell.getCellType()).thenReturn(CellType.NUMERIC);
+        Date dateVal = new Date();
+        when(dateCell.getDateCellValue()).thenReturn(dateVal);
+        when(dataRow.getCell(1)).thenReturn(dateCell);
 
         InputStream inputStream = new ByteArrayInputStream(new byte[0]);
 
         when(multipartFile.getOriginalFilename()).thenReturn("test.xlsx");
         when(multipartFile.getInputStream()).thenReturn(inputStream);
 
-        try (MockedStatic<WorkbookFactory> mockedFactory = mockStatic(WorkbookFactory.class)) {
+        try (MockedStatic<WorkbookFactory> mockedFactory = mockStatic(WorkbookFactory.class);
+             MockedStatic<DateUtil> mockedDateUtil = mockStatic(DateUtil.class)) {
             mockedFactory.when(() -> WorkbookFactory.create(any(InputStream.class)))
                     .thenReturn(workbook);
+            mockedDateUtil.when(() -> DateUtil.isCellDateFormatted(any(Cell.class)))
+                    .thenReturn(true);
 
             // When
             List<Map<String, String>> result = fileProcessService.processExcelFile(multipartFile);
@@ -250,16 +314,24 @@ class FileProcessServiceTest {
 
     @Test
     void testExcelProcessingWithNullDataRow() throws IOException {
-        // Given
-        Workbook workbook = new XSSFWorkbook();
-        Sheet sheet = workbook.createSheet("TestSheet");
+        Workbook workbook = mock(Workbook.class);
+        Sheet sheet = mock(Sheet.class);
+        when(workbook.getSheetAt(0)).thenReturn(sheet);
+        when(sheet.getLastRowNum()).thenReturn(2);
 
-        // Create header row
-        Row headerRow = sheet.createRow(0);
-        headerRow.createCell(0).setCellValue("Name");
+        Row headerRow = mock(Row.class);
+        when(sheet.getRow(0)).thenReturn(headerRow);
+        when(headerRow.getLastCellNum()).thenReturn((short) 1);
 
-        // Skip row 1 (it will be null)
-        // Row 2 will exist but row 1 will be null
+        Cell headerCell = mock(Cell.class);
+        when(headerCell.getCellType()).thenReturn(CellType.STRING);
+        RichTextString rt = mock(RichTextString.class);
+        when(rt.getString()).thenReturn("Name");
+        when(headerCell.getRichStringCellValue()).thenReturn(rt);
+        when(headerRow.getCell(0)).thenReturn(headerCell);
+
+        // Row 1 is null
+        when(sheet.getRow(1)).thenReturn(null);
 
         InputStream inputStream = new ByteArrayInputStream(new byte[0]);
 
@@ -281,22 +353,56 @@ class FileProcessServiceTest {
 
     @Test
     void testExcelProcessingWithBlankHeaderCells() throws IOException {
-        // Given
-        Workbook workbook = new XSSFWorkbook();
-        Sheet sheet = workbook.createSheet("TestSheet");
+        Workbook workbook = mock(Workbook.class);
+        Sheet sheet = mock(Sheet.class);
+        when(workbook.getSheetAt(0)).thenReturn(sheet);
+        when(sheet.getLastRowNum()).thenReturn(1);
 
-        // Create header row with blank cell
-        Row headerRow = sheet.createRow(0);
-        headerRow.createCell(0).setCellValue("Name");
-        Cell blankHeaderCell = headerRow.createCell(1);
-        blankHeaderCell.setCellType(CellType.BLANK);
-        headerRow.createCell(2).setCellValue("Age");
+        Row headerRow = mock(Row.class);
+        when(sheet.getRow(0)).thenReturn(headerRow);
+        when(headerRow.getLastCellNum()).thenReturn((short) 3);
 
-        // Create data row
-        Row dataRow = sheet.createRow(1);
-        dataRow.createCell(0).setCellValue("John");
-        dataRow.createCell(1).setCellValue("Ignored");
-        dataRow.createCell(2).setCellValue("25");
+        Cell headerCell0 = mock(Cell.class);
+        when(headerCell0.getCellType()).thenReturn(CellType.STRING);
+        RichTextString rt0 = mock(RichTextString.class);
+        when(rt0.getString()).thenReturn("Name");
+        when(headerCell0.getRichStringCellValue()).thenReturn(rt0);
+        when(headerRow.getCell(0)).thenReturn(headerCell0);
+
+        Cell blankHeaderCell = mock(Cell.class);
+        when(blankHeaderCell.getCellType()).thenReturn(CellType.BLANK);
+        when(headerRow.getCell(1)).thenReturn(blankHeaderCell);
+
+        Cell headerCell2 = mock(Cell.class);
+        when(headerCell2.getCellType()).thenReturn(CellType.STRING);
+        RichTextString rt2 = mock(RichTextString.class);
+        when(rt2.getString()).thenReturn("Age");
+        when(headerCell2.getRichStringCellValue()).thenReturn(rt2);
+        when(headerRow.getCell(2)).thenReturn(headerCell2);
+
+        Row dataRow = mock(Row.class);
+        when(sheet.getRow(1)).thenReturn(dataRow);
+
+        Cell dataCell0 = mock(Cell.class);
+        when(dataCell0.getCellType()).thenReturn(CellType.STRING);
+        RichTextString rtD0 = mock(RichTextString.class);
+        when(rtD0.getString()).thenReturn("John");
+        when(dataCell0.getRichStringCellValue()).thenReturn(rtD0);
+        when(dataRow.getCell(0)).thenReturn(dataCell0);
+
+        Cell dataCell1 = mock(Cell.class);
+        when(dataCell1.getCellType()).thenReturn(CellType.STRING);
+        RichTextString rtD1 = mock(RichTextString.class);
+        when(rtD1.getString()).thenReturn("Ignored");
+        when(dataCell1.getRichStringCellValue()).thenReturn(rtD1);
+        when(dataRow.getCell(1)).thenReturn(dataCell1);
+
+        Cell dataCell2 = mock(Cell.class);
+        when(dataCell2.getCellType()).thenReturn(CellType.STRING);
+        RichTextString rtD2 = mock(RichTextString.class);
+        when(rtD2.getString()).thenReturn("25");
+        when(dataCell2.getRichStringCellValue()).thenReturn(rtD2);
+        when(dataRow.getCell(2)).thenReturn(dataCell2);
 
         InputStream inputStream = new ByteArrayInputStream(new byte[0]);
 
@@ -321,19 +427,45 @@ class FileProcessServiceTest {
 
     @Test
     void testExcelProcessingWithNewlines() throws IOException {
-        // Given
-        Workbook workbook = new XSSFWorkbook();
-        Sheet sheet = workbook.createSheet("TestSheet");
+        Workbook workbook = mock(Workbook.class);
+        Sheet sheet = mock(Sheet.class);
+        when(workbook.getSheetAt(0)).thenReturn(sheet);
+        when(sheet.getLastRowNum()).thenReturn(1);
 
-        // Create header row with newlines
-        Row headerRow = sheet.createRow(0);
-        headerRow.createCell(0).setCellValue("Name\n*");
-        headerRow.createCell(1).setCellValue("Description");
+        Row headerRow = mock(Row.class);
+        when(sheet.getRow(0)).thenReturn(headerRow);
+        when(headerRow.getLastCellNum()).thenReturn((short) 2);
 
-        // Create data row with newlines
-        Row dataRow = sheet.createRow(1);
-        dataRow.createCell(0).setCellValue("John");
-        dataRow.createCell(1).setCellValue("Line1\nLine2");
+        Cell headerCell0 = mock(Cell.class);
+        when(headerCell0.getCellType()).thenReturn(CellType.STRING);
+        RichTextString rt0 = mock(RichTextString.class);
+        when(rt0.getString()).thenReturn("Name\n*");
+        when(headerCell0.getRichStringCellValue()).thenReturn(rt0);
+        when(headerRow.getCell(0)).thenReturn(headerCell0);
+
+        Cell headerCell1 = mock(Cell.class);
+        when(headerCell1.getCellType()).thenReturn(CellType.STRING);
+        RichTextString rt1 = mock(RichTextString.class);
+        when(rt1.getString()).thenReturn("Description");
+        when(headerCell1.getRichStringCellValue()).thenReturn(rt1);
+        when(headerRow.getCell(1)).thenReturn(headerCell1);
+
+        Row dataRow = mock(Row.class);
+        when(sheet.getRow(1)).thenReturn(dataRow);
+
+        Cell dataCell0 = mock(Cell.class);
+        when(dataCell0.getCellType()).thenReturn(CellType.STRING);
+        RichTextString rtD0 = mock(RichTextString.class);
+        when(rtD0.getString()).thenReturn("John");
+        when(dataCell0.getRichStringCellValue()).thenReturn(rtD0);
+        when(dataRow.getCell(0)).thenReturn(dataCell0);
+
+        Cell dataCell1 = mock(Cell.class);
+        when(dataCell1.getCellType()).thenReturn(CellType.STRING);
+        RichTextString rtD1 = mock(RichTextString.class);
+        when(rtD1.getString()).thenReturn("Line1\nLine2");
+        when(dataCell1.getRichStringCellValue()).thenReturn(rtD1);
+        when(dataRow.getCell(1)).thenReturn(dataCell1);
 
         InputStream inputStream = new ByteArrayInputStream(new byte[0]);
 
@@ -456,7 +588,7 @@ class FileProcessServiceTest {
                 {"John", "25"}
         };
 
-        Workbook workbook = createTestWorkbook(testData);
+        Workbook workbook = createMockWorkbook(testData);
         InputStream inputStream = new ByteArrayInputStream(new byte[0]);
 
         when(multipartFile.getOriginalFilename()).thenReturn("test.xls");

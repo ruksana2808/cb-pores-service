@@ -35,6 +35,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
@@ -62,6 +63,9 @@ public class DemandServiceImpl implements DemandService {
     private ObjectMapper objectMapper;
     @Autowired
     private RedisTemplate<String, SearchResult> redisTemplate;
+    @Autowired
+    @Qualifier("redisTemplate")
+    private RedisTemplate<String, String> redisTemplateString;
     private Logger logger = LoggerFactory.getLogger(DemandServiceImpl.class);
     @Autowired
     private AccessTokenValidator accessTokenValidator;
@@ -99,6 +103,18 @@ public class DemandServiceImpl implements DemandService {
         if (StringUtils.isBlank(userId)) {
             response.getParams().setErrmsg(Constants.USER_ID_DOESNT_EXIST);
             response.setResponseCode(HttpStatus.BAD_REQUEST);
+            return response;
+        }
+        String redisKey = Constants.REDIS_KEY_PREFIX + Constants.DEMAND_CREATE_RATE_LIMIT_PREFIX + userId;
+        String countVal = null;
+        try {
+            countVal = redisTemplateString.opsForValue().get(redisKey);
+        } catch (Exception e) {
+            logger.error("Error while fetching rate limit count from Redis: {}", e.getMessage());
+        }
+        if (countVal != null && Integer.parseInt(countVal) >= cbServerProperties.getMaxDemandCreateByUser()) {
+            response.getParams().setErrmsg(Constants.RATE_LIMIT_EXCEEDED);
+            response.setResponseCode(HttpStatus.TOO_MANY_REQUESTS);
             return response;
         }
         validateUser(rootOrgId, response, userId);
@@ -236,6 +252,14 @@ public class DemandServiceImpl implements DemandService {
             map.put(Constants.DEMAND_ID, id);
             response.setResult(map);
             response.setResponseCode(HttpStatus.OK);
+            try {
+                Long incrementedVal = redisTemplateString.opsForValue().increment(redisKey, 1);
+                if (incrementedVal != null && incrementedVal == 1) {
+                    redisTemplateString.expire(redisKey, cbServerProperties.getMaxDemandCreateByUserTtl(), TimeUnit.SECONDS);
+                }
+            } catch (Exception e) {
+                logger.error("Error while incrementing rate limit count in Redis: {}", e.getMessage());
+            }
             return response;
         } catch (Exception e) {
             logger.error("Error occurred while creating demand", e);

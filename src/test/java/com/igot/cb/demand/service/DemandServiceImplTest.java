@@ -40,6 +40,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.io.IOException;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -79,6 +80,9 @@ class DemandServiceImplTest {
     private RedisTemplate<String, SearchResult> redisTemplate;
 
     @Mock
+    private RedisTemplate<String, String> redisTemplateString;
+
+    @Mock
     private RequestHandlerServiceImpl requestHandlerService;
 
     @Mock
@@ -86,6 +90,9 @@ class DemandServiceImplTest {
 
     @Mock
     private ValueOperations<String, SearchResult> valueOperations;
+
+    @Mock
+    private ValueOperations<String, String> valueOperationsString;
 
     private DemandServiceImpl demandService;
 
@@ -104,11 +111,15 @@ class DemandServiceImplTest {
         ReflectionTestUtils.setField(demandService, "kafkaProducer", kafkaProducer);
         ReflectionTestUtils.setField(demandService, "requestHandlerService", requestHandlerService);
         ReflectionTestUtils.setField(demandService, "cbServerProperties", cbServerProperties);
+        ReflectionTestUtils.setField(demandService, "propertiesConfig", cbServerProperties);
         ReflectionTestUtils.setField(demandService, "esUtilService", esUtilService);
         ReflectionTestUtils.setField(demandService, "redisTemplate", redisTemplate);
+        ReflectionTestUtils.setField(demandService, "redisTemplateString", redisTemplateString);
         ReflectionTestUtils.setField(demandService, "logger", LoggerFactory.getLogger(DemandServiceImpl.class));
         // Mock statusTransitionConfig to avoid file read
         ReflectionTestUtils.setField(demandService, "statusTransitionConfig", mock(StatusTransitionConfig.class));
+
+        lenient().when(redisTemplateString.opsForValue()).thenReturn(valueOperationsString);
     }
 
 
@@ -1069,4 +1080,83 @@ class DemandServiceImplTest {
         assertEquals("error while processing", response.getParams().getErrmsg());
     }
 
+    @Test
+    void test_createDemand_shouldReturn429_whenRateLimitExceeded() {
+        ObjectNode demandDetails = new ObjectMapper().createObjectNode();
+        demandDetails.put("title", "Upskilling for Teachers");
+        demandDetails.put("objective", "Train teachers on blended learning practices.");
+        demandDetails.put(Constants.REQUEST_TYPE, Constants.BROADCAST);
+
+        String token = "validToken";
+        String userId = "user123";
+        String rootOrgId = "org123";
+
+        when(accessTokenValidator.verifyUserToken(token)).thenReturn(userId);
+        when(valueOperationsString.get(anyString())).thenReturn("100");
+        when(cbServerProperties.getMaxDemandCreateByUser()).thenReturn(100);
+
+        CustomResponse response = demandService.createDemand(demandDetails, token, rootOrgId);
+
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, response.getResponseCode());
+        assertEquals(Constants.RATE_LIMIT_EXCEEDED, response.getParams().getErrmsg());
+    }
+
+    @Test
+    void test_createDemand_shouldIncrementRedis_whenRateLimitNotExceeded() {
+        ObjectNode demandDetails = new ObjectMapper().createObjectNode();
+        demandDetails.put("title", "Upskilling for Teachers");
+        demandDetails.put("objective", "Train teachers on blended learning practices.");
+        demandDetails.put(Constants.REQUEST_TYPE, Constants.BROADCAST);
+
+        String token = "validToken";
+        String userId = "user123";
+        String rootOrgId = "org123";
+
+        when(accessTokenValidator.verifyUserToken(token)).thenReturn(userId);
+        when(valueOperationsString.get(anyString())).thenReturn("5");
+        when(cbServerProperties.getMaxDemandCreateByUser()).thenReturn(10);
+        when(cbServerProperties.getMaxDemandCreateByUserTtl()).thenReturn(3600);
+        when(cbServerProperties.getSbUrl()).thenReturn("https://mock-url/");
+        when(cbServerProperties.getUserReadEndPoint()).thenReturn("user/v1/read/");
+
+        Map<String, String> header = new HashMap<>();
+        String finalUrl = "https://mock-url/user/v1/read/" + userId;
+        List<String> rolesList = List.of("SOME_ROLE");
+        Map<String, Object> readData = Map.of(
+            Constants.RESULT, Map.of(Constants.RESPONSE, Map.of(Constants.ROLES, rolesList))
+        );
+        when(requestHandlerService.fetchUsingGetWithHeadersProfile(eq(finalUrl), eq(header)))
+                .thenReturn(readData);
+
+        // Mock cassandra user validation
+        when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(any(), any(), any(), any(), anyInt()))
+                .thenReturn(List.of(Map.of(Constants.USER_ROOT_ORG_ID, rootOrgId, Constants.FIRST_NAME, "John")));
+
+        // Mock org details
+        when(cassandraOperation.getRecordsByPropertiesWithoutFiltering(eq(Constants.KEYSPACE_SUNBIRD), eq(Constants.ORG_TABLE), anyMap(), isNull(), eq(1)))
+                .thenReturn(List.of(Map.of(Constants.USER_ROOT_ORG_NAME, "Sample Org")));
+
+        // Mock repository save
+        DemandEntity savedEntity = new DemandEntity();
+        savedEntity.setDemandId("12345");
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode dataNode = mapper.createObjectNode();
+        dataNode.put(Constants.REQUEST_TYPE, Constants.BROADCAST);
+        savedEntity.setData(dataNode);
+        when(demandRepository.save(any())).thenReturn(savedEntity);
+
+        // Mock other dependencies
+        when(cbServerProperties.getElasticDemandJsonPath()).thenReturn("dummy/path");
+        when(esUtilService.addDocument(anyString(), anyString(), anyString(), anyMap(), anyString())).thenReturn("");
+
+        when(valueOperationsString.increment(anyString(), eq(1L))).thenReturn(1L);
+
+        CustomResponse response = demandService.createDemand(demandDetails, token, rootOrgId);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        verify(valueOperationsString, times(1)).increment(anyString(), eq(1L));
+        verify(redisTemplateString, times(1)).expire(anyString(), eq(3600L), eq(TimeUnit.SECONDS));
+    }
+
 }
+
