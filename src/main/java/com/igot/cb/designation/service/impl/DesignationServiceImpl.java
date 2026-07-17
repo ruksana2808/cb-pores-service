@@ -595,10 +595,10 @@ public class DesignationServiceImpl implements DesignationService {
       }
     try {
       if (searchCriteria.getStartsWith() != null && StringUtils.isNotBlank(searchCriteria.getStartsWith())) {
-        searchCriteria.setStartsWithField(Constants.DESIGNATION);
+        searchCriteria.setStartsWithField(Constants.DESIGNATION+Constants.KEYWORD);
       }
       searchResult =
-          esUtilService.searchDocuments(Constants.DESIGNATION_INDEX_NAME, searchCriteria);
+          esUtilService.searchDocumentsV2(Constants.DESIGNATION_INDEX_NAME, searchCriteria);
       response.getResult().put(Constants.RESULT, searchResult);
       createSuccessResponse(response);
       return response;
