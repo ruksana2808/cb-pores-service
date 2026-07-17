@@ -928,7 +928,7 @@ class DesignationServiceImplTest {
         when(valueOperations.get(anyString())).thenReturn(null);
 
         SearchResult mockSearchResult = new SearchResult();
-        when(esUtilService.searchDocuments(anyString(), any(SearchCriteria.class))).thenReturn(mockSearchResult);
+        when(esUtilService.searchDocumentsV2(anyString(), any(SearchCriteria.class))).thenReturn(mockSearchResult);
 
         // Act
         CustomResponse response = designationService.searchDesignation(searchCriteria);
@@ -936,7 +936,7 @@ class DesignationServiceImplTest {
         // Assert
         assertEquals(HttpStatus.OK, response.getResponseCode());
         assertEquals(mockSearchResult, response.getResult().get("result"));
-        verify(esUtilService, times(1)).searchDocuments(anyString(), any(SearchCriteria.class));
+        verify(esUtilService, times(1)).searchDocumentsV2(anyString(), any(SearchCriteria.class));
     }
 
     /**
@@ -1568,7 +1568,7 @@ class DesignationServiceImplTest {
         when(valueOperations.get(anyString())).thenReturn(null);
 
         // Simulate exception from esUtilService
-        when(esUtilService.searchDocuments(eq(Constants.DESIGNATION_INDEX_NAME), any(SearchCriteria.class)))
+        when(esUtilService.searchDocumentsV2(eq(Constants.DESIGNATION_INDEX_NAME), any(SearchCriteria.class)))
                 .thenThrow(new RuntimeException("ES error"));
 
         // Act
