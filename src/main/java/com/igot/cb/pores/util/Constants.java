@@ -394,6 +394,12 @@ public class Constants {
     public static final String USER_WISE_LIMIT_ENABLED = "isUserWiseLimitEnabled";
     public static final String CONCURRENT_LIMIT_ENABLED = "isConcurrentLimitEnabled";
     public static final String ADD_KARMA_POINT_ENABLED = "addKarmaPointEnabled";
+    // Provider licensing (Partner Licensing Administration / Userwise Licence Limit)
+    public static final String LICENCE_TYPE = "liscenceType";
+    public static final String LICENCE_CONSUMED_COUNT = "licenceConsumedCount";
+    public static final String LICENCE_TYPE_USER = "User";
+    public static final String LICENCE_TYPE_COURSE = "Course";
+    public static final String LICENCE_TYPE_CANNOT_BE_CHANGED = "licenceType cannot be changed once it has been configured for a provider";
     public static final String UPDATED_CONTENT_PARTNER = "updated the content partner";
     public static final String CONTENT_PARTNER_CREATED = "Content partner created successfully";
     public static final String CONTENT_PARTNER_CACHE_DELETE = "during content partner create Deleting cache for partner code {}";

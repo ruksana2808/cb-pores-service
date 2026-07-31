@@ -1,5 +1,6 @@
 package com.igot.cb.contentpartner.service.impl;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.igot.cb.contentpartner.entity.ContentPartnerEntity;
@@ -636,6 +637,30 @@ class ContentPartnerServiceImplTest {
     }
 
     @Test
+    void testCreatePartner_DefaultsLicenceConsumedCountToZero() throws Exception {
+        ObjectNode input = realObjectMapper.createObjectNode();
+        input.put(Constants.CONTENT_PARTNER_NAME, "New Partner");
+        when(entityRepository.findByContentPartnerName("New Partner")).thenReturn(Optional.empty());
+        when(cbServerProperties.getPartnerCodeChar()).thenReturn("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+        when(secureRandom.nextInt(anyInt())).thenReturn(0);
+        when(entityRepository.findByPartnerCode(anyString())).thenReturn(Optional.empty());
+        ContentPartnerEntity savedEntity = new ContentPartnerEntity();
+        savedEntity.setId("auto-generated-uuid");
+        savedEntity.setData(input);
+        ArgumentCaptor<ContentPartnerEntity> captor = ArgumentCaptor.forClass(ContentPartnerEntity.class);
+        when(entityRepository.save(captor.capture())).thenReturn(savedEntity);
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(cbServerProperties.getElasticContentJsonPath()).thenReturn("path");
+
+        ApiResponse response = contentPartnerService.createContentPartner(input);
+
+        assertEquals(HttpStatus.OK, response.getResponseCode());
+        JsonNode savedData = captor.getValue().getData();
+        assertEquals(0, savedData.path(Constants.LICENCE_CONSUMED_COUNT).asInt());
+        assertTrue(savedData.path(Constants.LICENCE_TYPE).isMissingNode());
+    }
+
+    @Test
     void testCreatePartner_RegeneratesPartnerCodeIfExists() throws Exception {
         // Arrange
         ObjectNode input = realObjectMapper.createObjectNode();
@@ -775,6 +800,68 @@ class ContentPartnerServiceImplTest {
         verify(entityRepository).save(any(ContentPartnerEntity.class));
         verify(esUtilService).updateDocument(eq(Constants.CONTENT_PROVIDER_INDEX_NAME), eq(Constants.INDEX_TYPE), eq("id-123"), anyMap(), anyString());
     }
+    @Test
+    void testUpdateContentPartner_LicenceTypeChange_Rejected() {
+        ObjectNode dataNode = realObjectMapper.createObjectNode();
+        dataNode.put(Constants.CONTENT_PARTNER_NAME, "UpdatedName");
+        dataNode.put(Constants.LICENCE_TYPE, Constants.LICENCE_TYPE_COURSE);
+
+        ObjectNode request = realObjectMapper.createObjectNode();
+        request.put(Constants.ID, "id-123");
+        request.set(Constants.DATA, dataNode);
+
+        ContentPartnerEntity existing = new ContentPartnerEntity();
+        existing.setId("id-123");
+        ObjectNode existingData = realObjectMapper.createObjectNode();
+        existingData.put(Constants.PARTNERCODE, "PCODE");
+        existingData.put(Constants.LICENCE_TYPE, Constants.LICENCE_TYPE_USER);
+        existing.setData(existingData);
+
+        when(entityRepository.findById("id-123")).thenReturn(Optional.of(existing));
+        when(entityRepository.findByContentPartnerName("UpdatedName")).thenReturn(Optional.empty());
+
+        ApiResponse resp = contentPartnerService.createOrUpdate(request);
+
+        assertEquals(HttpStatus.BAD_REQUEST, resp.getResponseCode());
+        assertEquals(Constants.FAILED, resp.getParams().getStatus());
+        assertEquals(Constants.LICENCE_TYPE_CANNOT_BE_CHANGED, resp.getParams().getErrMsg());
+        verify(entityRepository, never()).save(any());
+    }
+
+    @Test
+    void testUpdateContentPartner_SameLicenceType_Allowed() throws Exception {
+        ObjectNode dataNode = realObjectMapper.createObjectNode();
+        dataNode.put(Constants.CONTENT_PARTNER_NAME, "UpdatedName");
+        dataNode.put(Constants.LICENCE_TYPE, Constants.LICENCE_TYPE_USER);
+
+        ObjectNode request = realObjectMapper.createObjectNode();
+        request.put(Constants.ID, "id-123");
+        request.set(Constants.DATA, dataNode);
+
+        ContentPartnerEntity existing = new ContentPartnerEntity();
+        existing.setId("id-123");
+        ObjectNode existingData = realObjectMapper.createObjectNode();
+        existingData.put(Constants.PARTNERCODE, "PCODE");
+        existingData.put(Constants.LICENCE_TYPE, Constants.LICENCE_TYPE_USER);
+        existing.setData(existingData);
+
+        when(entityRepository.findById("id-123")).thenReturn(Optional.of(existing));
+        when(entityRepository.findByContentPartnerName("UpdatedName")).thenReturn(Optional.empty());
+        ContentPartnerEntity saved = new ContentPartnerEntity();
+        saved.setId("id-123");
+        saved.setData(dataNode);
+        when(entityRepository.save(any(ContentPartnerEntity.class))).thenReturn(saved);
+        when(objectMapper.convertValue(any(), any(com.fasterxml.jackson.core.type.TypeReference.class)))
+                .thenReturn(new HashMap<>());
+        when(objectMapper.convertValue(any(), eq(Map.class))).thenReturn(new HashMap<>());
+        when(cbServerProperties.getElasticContentJsonPath()).thenReturn("elastic-path");
+
+        ApiResponse resp = contentPartnerService.createOrUpdate(request);
+
+        assertEquals(HttpStatus.OK, resp.getResponseCode());
+        verify(entityRepository).save(any(ContentPartnerEntity.class));
+    }
+
     @Test
     void testUpdateContentPartner_NotFound_ReturnsBadRequest() {
         ObjectNode dataNode = realObjectMapper.createObjectNode();
