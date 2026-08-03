@@ -100,6 +100,15 @@ public class ContentPartnerServiceImpl implements ContentPartnerService {
                 return response;
             }
             ContentPartnerEntity jsonEntity = content.get();
+            String existingLicenceType = jsonEntity.getData().path(Constants.LICENCE_TYPE).asText(null);
+            JsonNode incomingLicenceType = data.get(Constants.LICENCE_TYPE);
+            if (StringUtils.isNotBlank(existingLicenceType) && incomingLicenceType != null && !incomingLicenceType.isNull()
+                    && !existingLicenceType.equals(incomingLicenceType.asText())) {
+                response.getParams().setErrMsg(Constants.LICENCE_TYPE_CANNOT_BE_CHANGED);
+                response.getParams().setStatus(Constants.FAILED);
+                response.setResponseCode(HttpStatus.BAD_REQUEST);
+                return response;
+            }
             String partnerCode = jsonEntity.getData().path(Constants.PARTNERCODE).asText();
             createContentPartnerEntity(jsonEntity, partnerDetails);
             ContentPartnerEntity updateJsonEntity = entityRepository.save(jsonEntity);
@@ -204,6 +213,9 @@ public class ContentPartnerServiceImpl implements ContentPartnerService {
         ((ObjectNode) partnerDetails).put(Constants.OVER_ALL_LIMIT, 0);
         ((ObjectNode) partnerDetails).put(Constants.USER_WISE_LIMIT_ENABLED, Constants.IN_ACTIVE_STATUS);
         ((ObjectNode) partnerDetails).put(Constants.CONCURRENT_LIMIT_ENABLED, Constants.IN_ACTIVE_STATUS);
+        // liscenceType is intentionally left unset here - it is configured later via update and,
+        // once set, must not be changed (see updateContentPartner).
+        ((ObjectNode) partnerDetails).put(Constants.LICENCE_CONSUMED_COUNT, 0);
         ((ObjectNode) partnerDetails).put(Constants.ADD_KARMA_POINT_ENABLED, Constants.IN_ACTIVE_STATUS);
         ((ObjectNode) partnerDetails).put(Constants.IS_AUTHENTICATE, Constants.IN_ACTIVE_STATUS);
         ObjectNode node = (ObjectNode) partnerDetails;

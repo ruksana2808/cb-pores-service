@@ -102,6 +102,16 @@
       "minimum": 0
     },
 
+    "liscenceType": {
+      "type": "string",
+      "enum": ["User", "Course"]
+    },
+
+    "licenceConsumedCount": {
+      "type": "number",
+      "minimum": 0
+    },
+
     "addKarmaPointEnabled": { "type": "boolean" },
 
     "karmaPoints": {
