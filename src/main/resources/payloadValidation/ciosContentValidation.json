@@ -64,6 +64,18 @@
             },
             "additionalProperties": false
           }
+        },
+        "courseType": {
+          "type": "string",
+          "enum": ["paid", "free"]
+        },
+        "courseEnrolLimit": {
+          "type": "number",
+          "minimum": 0
+        },
+        "requiredKarmaPoints": {
+          "type": "number",
+          "minimum": 0
         }
       },
       "required": [

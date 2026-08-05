@@ -432,6 +432,11 @@ public class Constants {
     public static final String INVALID_EMAIL = "Invalid email";
     public static final String INVALID_ID_OR_EMAIL = "Invalid Application ID/Email. Please check the ID shared in your confirmation email and try again";
     public static final String DIFFICULTY_LEVEL = "difficultyLevel";
+    public static final String COURSE_TYPE = "courseType";
+    public static final String COURSE_TYPE_PAID = "paid";
+    public static final String COURSE_TYPE_FREE = "free";
+    public static final String COURSE_ENROL_LIMIT = "courseEnrolLimit";
+    public static final String REQUIRED_KARMA_POINTS = "requiredKarmaPoints";
     public static final String CHANNEL = "channel";
     public static final String ASCENDING = "ASC";
     public static final String ORDER_BY = "orderBy";
