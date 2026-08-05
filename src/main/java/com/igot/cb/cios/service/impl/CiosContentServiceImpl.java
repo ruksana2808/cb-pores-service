@@ -219,6 +219,14 @@ public class CiosContentServiceImpl implements CiosContentService {
                     contentNode.put(Constants.IS_ACTIVE, Constants.ACTIVE_STATUS);
                     contentNode.put(Constants.PUBLISHED_ON, timestamp.toString());
                     contentNode.put(Constants.UPDATED_DATE, timestamp.toString());
+                    // requiredKarmaPoints and courseEnrolLimit are entered at publish time; default to 0 unless supplied.
+                    // courseEnrolLimit is only meaningful for paid courses.
+                    contentNode.put(Constants.REQUIRED_KARMA_POINTS,
+                            eachData.getRequiredKarmaPoints() != null ? eachData.getRequiredKarmaPoints() : 0);
+                    if (Constants.COURSE_TYPE_PAID.equalsIgnoreCase(contentNode.path(Constants.COURSE_TYPE).asText())) {
+                        contentNode.put(Constants.COURSE_ENROL_LIMIT,
+                                eachData.getCourseEnrolLimit() != null ? eachData.getCourseEnrolLimit() : 0);
+                    }
                     apiCallToCiosSecondaryDbForUpdateData(jsonNode);
                     CiosContentEntity ciosContentEntity = createNewContent(jsonNode);
                     ciosRepository.save(ciosContentEntity);
@@ -466,6 +474,14 @@ public class CiosContentServiceImpl implements CiosContentService {
         String difficultyLevel = eachData.getDifficultyLevel();
         if (StringUtils.isNotBlank(difficultyLevel)) {
             contentNode.put(Constants.DIFFICULTY_LEVEL, difficultyLevel);
+        }
+        // courseType is set at onboarding; default to "paid" unless already present
+        // (either supplied on this request, or already set on the content from a prior onboarding call).
+        String courseType = eachData.getCourseType();
+        if (StringUtils.isNotBlank(courseType)) {
+            contentNode.put(Constants.COURSE_TYPE, courseType);
+        } else if (StringUtils.isBlank(contentNode.path(Constants.COURSE_TYPE).asText(null))) {
+            contentNode.put(Constants.COURSE_TYPE, Constants.COURSE_TYPE_PAID);
         }
     }
 

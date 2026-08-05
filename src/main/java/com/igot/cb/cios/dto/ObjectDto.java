@@ -22,4 +22,7 @@ public class ObjectDto{
     private String difficultyLevel;
     private boolean accessSettingsEnabled;
     private JsonNode badgeDetails_v1;
+    private String courseType;
+    private Integer courseEnrolLimit;
+    private Integer requiredKarmaPoints;
 }
