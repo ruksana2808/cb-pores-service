@@ -437,6 +437,7 @@ public class Constants {
     public static final String COURSE_TYPE_FREE = "free";
     public static final String COURSE_ENROL_LIMIT = "courseEnrolLimit";
     public static final String REQUIRED_KARMA_POINTS = "requiredKarmaPoints";
+    public static final String KARMA_POINTS = "karmaPoints";
     public static final String CHANNEL = "channel";
     public static final String ASCENDING = "ASC";
     public static final String ORDER_BY = "orderBy";
