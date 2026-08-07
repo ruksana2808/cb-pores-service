@@ -267,7 +267,6 @@ public class CiosContentServiceImpl implements CiosContentService {
      * - If the provider hasn't configured a licenceType yet, this is a no-op beyond the
      *   provider-karma-points gate above, preserving prior default-only behaviour.
      */
-    @SuppressWarnings("unchecked")
     private void applyPublishTimeLicenceRules(ObjectNode contentNode, ObjectDto eachData, String partnerCode) {
         contentNode.put(Constants.REQUIRED_KARMA_POINTS,
                 eachData.getRequiredKarmaPoints() != null ? eachData.getRequiredKarmaPoints() : 0);
@@ -281,27 +280,40 @@ public class CiosContentServiceImpl implements CiosContentService {
                 || partnerResponse.getResult().get(Constants.DATA) == null) {
             return;
         }
+
+        @SuppressWarnings("unchecked")
         Map<String, Object> partnerData = (Map<String, Object>) partnerResponse.getResult().get(Constants.DATA);
         String partnerLicenceType = (String) partnerData.get(Constants.LICENCE_TYPE);
         boolean addKarmaPointEnabled = Boolean.TRUE.equals(partnerData.get(Constants.ADD_KARMA_POINT_ENABLED));
         Number partnerKarmaPointsNum = (Number) partnerData.get(Constants.KARMA_POINTS);
         int partnerKarmaPoints = partnerKarmaPointsNum != null ? partnerKarmaPointsNum.intValue() : 0;
         boolean providerHasKarmaPoints = addKarmaPointEnabled && partnerKarmaPoints > 0;
-
-        if (!providerHasKarmaPoints) {
-            contentNode.put(Constants.REQUIRED_KARMA_POINTS, 0);
-        }
+        int karmaPointsToApply = providerHasKarmaPoints ? partnerKarmaPoints : 0;
 
         if (Constants.LICENCE_TYPE_USER.equalsIgnoreCase(partnerLicenceType)) {
             contentNode.put(Constants.COURSE_TYPE, Constants.COURSE_TYPE_PAID);
             contentNode.put(Constants.COURSE_ENROL_LIMIT, 0);
-            contentNode.put(Constants.REQUIRED_KARMA_POINTS, providerHasKarmaPoints ? partnerKarmaPoints : 0);
+            contentNode.put(Constants.REQUIRED_KARMA_POINTS, karmaPointsToApply);
         } else if (Constants.LICENCE_TYPE_COURSE.equalsIgnoreCase(partnerLicenceType)) {
-            if (Constants.COURSE_TYPE_FREE.equalsIgnoreCase(contentNode.path(Constants.COURSE_TYPE).asText())) {
+            boolean isFree = Constants.COURSE_TYPE_FREE.equalsIgnoreCase(
+                    contentNode.path(Constants.COURSE_TYPE).asText());
+            if (isFree || !providerHasKarmaPoints) {
+                // Free courses never require karma points; and if the provider has no karma
+                // points configured at all, no course under it can require any either.
                 contentNode.put(Constants.REQUIRED_KARMA_POINTS, 0);
             } else {
-                contentNode.put(Constants.REQUIRED_KARMA_POINTS, providerHasKarmaPoints ? partnerKarmaPoints : 0);
+                // Paid course under a Course-licence provider: honour a course-level value only
+                // if it meets or exceeds the provider's own karmaPoints floor. If no course-level
+                // value was supplied, or the supplied value is below the provider's floor, fall
+                // back to the provider's karmaPoints instead of applying the (missing/too-low) value.
+                Integer enteredKarmaPoints = eachData.getRequiredKarmaPoints();
+                contentNode.put(Constants.REQUIRED_KARMA_POINTS,
+                        (enteredKarmaPoints != null && enteredKarmaPoints >= partnerKarmaPoints)
+                                ? enteredKarmaPoints
+                                : partnerKarmaPoints);
             }
+        } else if (!providerHasKarmaPoints) {
+            contentNode.put(Constants.REQUIRED_KARMA_POINTS, 0);
         }
     }
 
