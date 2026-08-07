@@ -297,7 +297,21 @@ public class CiosContentServiceImpl implements CiosContentService {
         } else if (Constants.LICENCE_TYPE_COURSE.equalsIgnoreCase(partnerLicenceType)) {
             boolean isFree = Constants.COURSE_TYPE_FREE.equalsIgnoreCase(
                     contentNode.path(Constants.COURSE_TYPE).asText());
-            contentNode.put(Constants.REQUIRED_KARMA_POINTS, isFree ? 0 : karmaPointsToApply);
+            if (isFree || !providerHasKarmaPoints) {
+                // Free courses never require karma points; and if the provider has no karma
+                // points configured at all, no course under it can require any either.
+                contentNode.put(Constants.REQUIRED_KARMA_POINTS, 0);
+            } else {
+                // Paid course under a Course-licence provider: honour a course-level value only
+                // if it meets or exceeds the provider's own karmaPoints floor. If no course-level
+                // value was supplied, or the supplied value is below the provider's floor, fall
+                // back to the provider's karmaPoints instead of applying the (missing/too-low) value.
+                Integer enteredKarmaPoints = eachData.getRequiredKarmaPoints();
+                contentNode.put(Constants.REQUIRED_KARMA_POINTS,
+                        (enteredKarmaPoints != null && enteredKarmaPoints >= partnerKarmaPoints)
+                                ? enteredKarmaPoints
+                                : partnerKarmaPoints);
+            }
         } else if (!providerHasKarmaPoints) {
             contentNode.put(Constants.REQUIRED_KARMA_POINTS, 0);
         }
