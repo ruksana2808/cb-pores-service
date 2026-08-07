@@ -268,8 +268,15 @@ public class CiosContentServiceImpl implements CiosContentService {
      *   provider-karma-points gate above, preserving prior default-only behaviour.
      */
     private void applyPublishTimeLicenceRules(ObjectNode contentNode, ObjectDto eachData, String partnerCode) {
-        contentNode.put(Constants.REQUIRED_KARMA_POINTS,
-                eachData.getRequiredKarmaPoints() != null ? eachData.getRequiredKarmaPoints() : 0);
+        // Capture whatever requiredKarmaPoints was actually submitted for this course - whether it
+        // arrived as the top-level ObjectDto field or already nested inside contentData.content -
+        // before the placeholder write below overwrites contentNode with just the ObjectDto field.
+        Integer enteredKarmaPoints = eachData.getRequiredKarmaPoints();
+        if (enteredKarmaPoints == null && contentNode.hasNonNull(Constants.REQUIRED_KARMA_POINTS)) {
+            enteredKarmaPoints = contentNode.path(Constants.REQUIRED_KARMA_POINTS).asInt();
+        }
+
+        contentNode.put(Constants.REQUIRED_KARMA_POINTS, enteredKarmaPoints != null ? enteredKarmaPoints : 0);
         if (Constants.COURSE_TYPE_PAID.equalsIgnoreCase(contentNode.path(Constants.COURSE_TYPE).asText())) {
             contentNode.put(Constants.COURSE_ENROL_LIMIT,
                     eachData.getCourseEnrolLimit() != null ? eachData.getCourseEnrolLimit() : 0);
@@ -306,7 +313,6 @@ public class CiosContentServiceImpl implements CiosContentService {
                 // if it meets or exceeds the provider's own karmaPoints floor. If no course-level
                 // value was supplied, or the supplied value is below the provider's floor, fall
                 // back to the provider's karmaPoints instead of applying the (missing/too-low) value.
-                Integer enteredKarmaPoints = eachData.getRequiredKarmaPoints();
                 contentNode.put(Constants.REQUIRED_KARMA_POINTS,
                         (enteredKarmaPoints != null && enteredKarmaPoints >= partnerKarmaPoints)
                                 ? enteredKarmaPoints
