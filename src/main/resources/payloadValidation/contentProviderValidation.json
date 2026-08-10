@@ -102,12 +102,12 @@
       "minimum": 0
     },
 
-    "liscenceType": {
+    "licenseType": {
       "type": "string",
       "enum": ["User", "Course"]
     },
 
-    "licenceConsumedCount": {
+    "licenseConsumedCount": {
       "type": "number",
       "minimum": 0
     },
