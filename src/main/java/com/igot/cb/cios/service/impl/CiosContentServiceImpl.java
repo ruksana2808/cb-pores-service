@@ -613,4 +613,73 @@ public class CiosContentServiceImpl implements CiosContentService {
             throw new CustomException("ERROR", e.getMessage(), HttpStatus.BAD_REQUEST);
         }
     }
+
+    @Override
+    public Object fetchDataByInputFields(String contentId, String inputFields) {
+        log.info(
+                "CiosContentServiceImpl::fetchDataByInputFields: contentId: {}, inputFields: {}",
+                contentId,
+                inputFields
+        );
+        if (StringUtils.isBlank(contentId)) {
+            log.error("CiosContentServiceImpl::fetchDataByInputFields: contentId not found");
+            throw new CustomException(
+                    Constants.ERROR,
+                    "contentId is mandatory",
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+        if (StringUtils.isBlank(inputFields)) {
+            log.error("CiosContentServiceImpl::fetchDataByInputFields: inputFields not found");
+            throw new CustomException(
+                    Constants.ERROR,
+                    "inputFields is mandatory",
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+        Object fullContent = fetchDataByContentId(contentId);
+        if (!(fullContent instanceof Map)) {
+            log.info(
+                    "CiosContentServiceImpl::fetchDataByInputFields: content for id {} is not a map, returning as-is",
+                    contentId
+            );
+            return fullContent;
+        }
+        Map<?, ?> fullContentMap = (Map<?, ?>) fullContent;
+        Object innerContent = fullContentMap.get(Constants.CONTENT);
+        if (!(innerContent instanceof Map)) {
+            log.info(
+                    "CiosContentServiceImpl::fetchDataByInputFields: no '{}' node found for id {}, returning as-is",
+                    Constants.CONTENT,
+                    contentId
+            );
+            return fullContent;
+        }
+        Map<?, ?> innerContentMap = (Map<?, ?>) innerContent;
+
+        Set<String> requestedFields = Arrays.stream(inputFields.split(","))
+                .map(String::trim)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (requestedFields.isEmpty()) {
+            log.error(
+                    "CiosContentServiceImpl::fetchDataByInputFields: no valid fields parsed from inputFields: {}",
+                    inputFields
+            );
+            throw new CustomException(
+                    Constants.ERROR,
+                    "inputFields is mandatory",
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+
+        Map<String, Object> filteredInnerContent = new LinkedHashMap<>();
+        requestedFields.stream()
+                .filter(innerContentMap::containsKey)
+                .forEach(field -> filteredInnerContent.put(field, innerContentMap.get(field)));
+
+        Map<String, Object> filteredContent = new LinkedHashMap<>();
+        filteredContent.put(Constants.CONTENT, filteredInnerContent);
+        return filteredContent;
+    }
 }

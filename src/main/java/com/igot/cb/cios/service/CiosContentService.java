@@ -26,4 +26,6 @@ public interface CiosContentService {
   
     SearchResult readContent(SearchCriteria searchCriteria);
 
+    Object fetchDataByInputFields(String contentId, String inputFields);
+
 }

@@ -831,6 +831,175 @@ class CiosContentServiceImplTest {
         verify(objectMapper).convertValue(eq(node), ArgumentMatchers.<TypeReference<Object>>any());
     }
 
+    /**
+     * contentId is blank -> should fail fast with the "contentId is mandatory" error
+     * and never touch cache/repository at all.
+     */
+    @Test
+    void test_fetchDataByInputFields_blankContentId() {
+        CustomException exception = assertThrows(CustomException.class, () ->
+                ciosContentService.fetchDataByInputFields("  ", "name")
+        );
+
+        assertEquals(Constants.ERROR, exception.getCode());
+        assertEquals("contentId is mandatory", exception.getMessage());
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getHttpStatusCode());
+
+        verifyNoInteractions(cacheService);
+        verifyNoInteractions(ciosRepository);
+    }
+
+    /**
+     * inputFields is blank -> should fail fast with the "inputFields is mandatory" error
+     * before ever attempting to fetch the content.
+     */
+    @Test
+    void test_fetchDataByInputFields_blankInputFields() {
+        CustomException exception = assertThrows(CustomException.class, () ->
+                ciosContentService.fetchDataByInputFields("test-content-id", "   ")
+        );
+
+        assertEquals(Constants.ERROR, exception.getCode());
+        assertEquals("inputFields is mandatory", exception.getMessage());
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getHttpStatusCode());
+
+        verifyNoInteractions(cacheService);
+        verifyNoInteractions(ciosRepository);
+    }
+
+    /**
+     * inputFields is non-blank but parses down to zero usable field names
+     * (only commas/whitespace) -> should still fail with "inputFields is mandatory",
+     * but only after fetching the content, since parsing happens after the fetch.
+     */
+    @Test
+    void test_fetchDataByInputFields_onlyCommasAndWhitespace() {
+        String contentId = "test-content-id";
+        when(cacheService.getCache(contentId)).thenReturn(null);
+
+        ObjectNode node = new ObjectMapper().createObjectNode();
+        node.putObject(Constants.CONTENT).put("name", "value");
+
+        CiosContentEntity entity = new CiosContentEntity();
+        entity.setCiosData(node);
+        when(ciosRepository.findByContentId(eq(contentId))).thenReturn(Optional.of(entity));
+
+        Map<String, Object> innerContent = new LinkedHashMap<>();
+        innerContent.put("name", "value");
+        Map<String, Object> fullContent = new LinkedHashMap<>();
+        fullContent.put(Constants.CONTENT, innerContent);
+        when(objectMapper.convertValue(eq(node), ArgumentMatchers.<TypeReference<Object>>any()))
+                .thenReturn(fullContent);
+
+        CustomException exception = assertThrows(CustomException.class, () ->
+                ciosContentService.fetchDataByInputFields(contentId, " , ,  ,")
+        );
+
+        assertEquals(Constants.ERROR, exception.getCode());
+        assertEquals("inputFields is mandatory", exception.getMessage());
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getHttpStatusCode());
+
+        verify(cacheService).getCache(contentId);
+        verify(ciosRepository).findByContentId(contentId);
+    }
+
+    /**
+     * fetchDataByContentId returns a non-Map value (e.g. a plain String cached in redis) ->
+     * fetchDataByInputFields should just return that value as-is instead of failing.
+     */
+    @Test
+    void test_fetchDataByInputFields_fullContentNotAMap_returnsAsIs() throws Exception {
+        String contentId = "test-content-id";
+        String cachedJson = "\"plain string value\"";
+
+        when(cacheService.getCache(contentId)).thenReturn(cachedJson);
+        when(objectMapper.readValue(eq(cachedJson), ArgumentMatchers.<TypeReference<Object>>any()))
+                .thenReturn("plain string value");
+
+        Object result = ciosContentService.fetchDataByInputFields(contentId, "name");
+
+        assertEquals("plain string value", result);
+        verifyNoInteractions(ciosRepository);
+    }
+
+    /**
+     * fetchDataByContentId returns a Map, but it has no "content" node ->
+     * fetchDataByInputFields should return the full map as-is instead of failing.
+     */
+    @Test
+    void test_fetchDataByInputFields_noContentNode_returnsAsIs() {
+        String contentId = "test-content-id";
+        when(cacheService.getCache(contentId)).thenReturn(null);
+
+        ObjectNode node = new ObjectMapper().createObjectNode();
+        node.put("name", "value");
+
+        CiosContentEntity entity = new CiosContentEntity();
+        entity.setCiosData(node);
+        when(ciosRepository.findByContentId(eq(contentId))).thenReturn(Optional.of(entity));
+
+        Map<String, Object> fullContent = new LinkedHashMap<>();
+        fullContent.put("name", "value");
+        when(objectMapper.convertValue(eq(node), ArgumentMatchers.<TypeReference<Object>>any()))
+                .thenReturn(fullContent);
+
+        Object result = ciosContentService.fetchDataByInputFields(contentId, "name");
+
+        assertSame(fullContent, result);
+    }
+
+    /**
+     * Happy path: only the requested fields are returned, in the order requested,
+     * duplicates are collapsed, unknown fields are silently dropped, and a field
+     * whose value is JSON null is preserved rather than causing an NPE.
+     */
+    @Test
+    void test_fetchDataByInputFields_filtersAndPreservesOrder() {
+        String contentId = "test-content-id";
+        when(cacheService.getCache(contentId)).thenReturn(null);
+
+        ObjectNode node = new ObjectMapper().createObjectNode();
+        ObjectNode contentNode = node.putObject(Constants.CONTENT);
+        contentNode.put("name", "Foundations of Ethical Reasoning");
+        contentNode.put("topic", "Environmental, Social, Governance, Law");
+        contentNode.putNull("description");
+
+        CiosContentEntity entity = new CiosContentEntity();
+        entity.setCiosData(node);
+        when(ciosRepository.findByContentId(eq(contentId))).thenReturn(Optional.of(entity));
+
+        Map<String, Object> innerContent = new LinkedHashMap<>();
+        innerContent.put("name", "Foundations of Ethical Reasoning");
+        innerContent.put("topic", "Environmental, Social, Governance, Law");
+        innerContent.put("description", null);
+        innerContent.put("status", "Live");
+        Map<String, Object> fullContent = new LinkedHashMap<>();
+        fullContent.put(Constants.CONTENT, innerContent);
+        when(objectMapper.convertValue(eq(node), ArgumentMatchers.<TypeReference<Object>>any()))
+                .thenReturn(fullContent);
+
+        Object result = ciosContentService.fetchDataByInputFields(
+                contentId, "description, name, name, missingField"
+        );
+
+        assertTrue(result instanceof Map);
+        Object innerResult = ((Map<?, ?>) result).get(Constants.CONTENT);
+        assertTrue(innerResult instanceof Map);
+        Map<?, ?> filtered = (Map<?, ?>) innerResult;
+
+        // Only the two known, requested fields should be present ("status" and
+        // "topic" were not requested; "missingField" doesn't exist).
+        assertEquals(2, filtered.size());
+        assertTrue(filtered.containsKey("description"));
+        assertNull(filtered.get("description"));
+        assertEquals("Foundations of Ethical Reasoning", filtered.get("name"));
+
+        // Order should follow the caller's requested order: description, then name.
+        Iterator<?> keyIterator = filtered.keySet().iterator();
+        assertEquals("description", keyIterator.next());
+        assertEquals("name", keyIterator.next());
+    }
+
     @Test
     void test_createNewContent_NewEntity() throws Exception {
         // Prepare input JSON with necessary structure
