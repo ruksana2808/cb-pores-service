@@ -53,4 +53,10 @@ public class CiosController {
         SearchResult searchResult = ciosContentService.readContent(searchCriteria);
         return new ResponseEntity<>(searchResult, HttpStatus.OK);
     }
+
+    @GetMapping(value = "/v2/content/read/{contentId}")
+    public ResponseEntity<Object> fetchDataByInputFields(@PathVariable String contentId, @RequestParam(required = false) String inputFields) {
+        return new ResponseEntity<>(ciosContentService.fetchDataByInputFields(contentId, inputFields), HttpStatus.OK);
+    }
+
 }
