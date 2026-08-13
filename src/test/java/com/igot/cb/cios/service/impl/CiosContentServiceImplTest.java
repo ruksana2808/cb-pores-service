@@ -869,8 +869,8 @@ class CiosContentServiceImplTest {
 
     /**
      * inputFields is non-blank but parses down to zero usable field names
-     * (only commas/whitespace) -> should still fail with "inputFields is mandatory",
-     * but only after fetching the content, since parsing happens after the fetch.
+     * (only commas/whitespace) -> no field names match anything, so the method
+     * returns an empty "content" object rather than throwing.
      */
     @Test
     void test_fetchDataByInputFields_onlyCommasAndWhitespace() {
@@ -891,13 +891,12 @@ class CiosContentServiceImplTest {
         when(objectMapper.convertValue(eq(node), ArgumentMatchers.<TypeReference<Object>>any()))
                 .thenReturn(fullContent);
 
-        CustomException exception = assertThrows(CustomException.class, () ->
-                ciosContentService.fetchDataByInputFields(contentId, " , ,  ,")
-        );
+        Object result = ciosContentService.fetchDataByInputFields(contentId, " , ,  ,");
 
-        assertEquals(Constants.ERROR, exception.getCode());
-        assertEquals("inputFields is mandatory", exception.getMessage());
-        assertEquals(HttpStatus.BAD_REQUEST, exception.getHttpStatusCode());
+        assertTrue(result instanceof Map);
+        Object innerResult = ((Map<?, ?>) result).get(Constants.CONTENT);
+        assertTrue(innerResult instanceof Map);
+        assertTrue(((Map<?, ?>) innerResult).isEmpty());
 
         verify(cacheService).getCache(contentId);
         verify(ciosRepository).findByContentId(contentId);

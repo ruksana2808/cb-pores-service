@@ -661,17 +661,6 @@ public class CiosContentServiceImpl implements CiosContentService {
                 .map(String::trim)
                 .filter(StringUtils::isNotBlank)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        if (requestedFields.isEmpty()) {
-            log.error(
-                    "CiosContentServiceImpl::fetchDataByInputFields: no valid fields parsed from inputFields: {}",
-                    inputFields
-            );
-            throw new CustomException(
-                    Constants.ERROR,
-                    "inputFields is mandatory",
-                    HttpStatus.BAD_REQUEST
-            );
-        }
 
         Map<String, Object> filteredInnerContent = new LinkedHashMap<>();
         requestedFields.stream()
