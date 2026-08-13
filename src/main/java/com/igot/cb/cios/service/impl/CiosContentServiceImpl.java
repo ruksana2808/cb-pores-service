@@ -279,17 +279,10 @@ public class CiosContentServiceImpl implements CiosContentService {
             enteredKarmaPoints = contentNode.path(Constants.REQUIRED_KARMA_POINTS).asInt();
         }
 
-        // Same fallback for courseEnrolLimit - it's just as likely to arrive only nested inside
-        // contentData.content as the top-level ObjectDto field, and must be captured here too,
-        // before the placeholder write below overwrites contentNode with just the ObjectDto field.
-        Integer enteredCourseEnrolLimit = eachData.getCourseEnrolLimit();
-        if (enteredCourseEnrolLimit == null && contentNode.hasNonNull(Constants.COURSE_ENROL_LIMIT)) {
-            enteredCourseEnrolLimit = contentNode.path(Constants.COURSE_ENROL_LIMIT).asInt();
-        }
-
         contentNode.put(Constants.REQUIRED_KARMA_POINTS, enteredKarmaPoints != null ? enteredKarmaPoints : 0);
         if (Constants.COURSE_TYPE_PAID.equalsIgnoreCase(contentNode.path(Constants.COURSE_TYPE).asText())) {
-            contentNode.put(Constants.COURSE_ENROL_LIMIT, enteredCourseEnrolLimit != null ? enteredCourseEnrolLimit : 0);
+            contentNode.put(Constants.COURSE_ENROL_LIMIT,
+                    eachData.getCourseEnrolLimit() != null ? eachData.getCourseEnrolLimit() : 0);
         }
 
         ApiResponse partnerResponse = contentPartnerService.getContentDetailsByPartnerCode(partnerCode);
@@ -322,6 +315,7 @@ public class CiosContentServiceImpl implements CiosContentService {
                 // regardless of any value supplied on this request.
                 contentNode.put(Constants.COURSE_ENROL_LIMIT, overAllLimit);
             } else {
+                Integer enteredCourseEnrolLimit = eachData.getCourseEnrolLimit();
                 int resolvedCourseEnrolLimit;
                 if (enteredCourseEnrolLimit != null && enteredCourseEnrolLimit <= overAllLimit) {
                     // Supplied and within the partner's overall limit - honour it.
