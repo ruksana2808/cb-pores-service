@@ -260,8 +260,11 @@ public class CiosContentServiceImpl implements CiosContentService {
      * - licenceType == "User": every course is forced to courseType "paid" with courseEnrolLimit
      *   0 (per-course caps don't apply under a user-wise licence), and requiredKarmaPoints is
      *   forced to exactly match the provider's karmaPoints.
-     * - licenceType == "Course": courseType/courseEnrolLimit remain as entered (already defaulted
-     *   to "paid"/0 by updateContentWithRequiredFields/this method's caller when not supplied).
+     * - licenceType == "Course", courseType "free": courseEnrolLimit is always set to the
+     *   partner's overAllLimit, regardless of any value supplied on this request.
+     * - licenceType == "Course", courseType "paid": courseEnrolLimit uses the supplied value when
+     *   it is within the partner's overAllLimit; otherwise (not supplied, or supplied but above
+     *   the overAllLimit) it falls back to the overAllLimit itself.
      *   requiredKarmaPoints is forced to 0 for a "free" course, and to exactly match the
      *   provider's karmaPoints for a "paid" course (same outcome as the User-licence case).
      * - If the provider hasn't configured a licenceType yet, this is a no-op beyond the
@@ -304,22 +307,27 @@ public class CiosContentServiceImpl implements CiosContentService {
         } else if (Constants.LICENCE_TYPE_COURSE.equalsIgnoreCase(partnerLicenceType)) {
             Number overAllLimitNum = (Number) partnerData.get(Constants.OVER_ALL_LIMIT);
             int overAllLimit = overAllLimitNum != null ? overAllLimitNum.intValue() : 0;
-            Integer enteredCourseEnrolLimit = eachData.getCourseEnrolLimit();
-            int resolvedCourseEnrolLimit;
-            if (enteredCourseEnrolLimit == null) {
-                // Not supplied on this request - default to the partner's overall licence limit
-                // rather than 0.
-                resolvedCourseEnrolLimit = overAllLimit;
-            } else if (enteredCourseEnrolLimit > overAllLimit) {
-                // Supplied, but above the partner's overall limit - cap it at that limit.
-                resolvedCourseEnrolLimit = overAllLimit;
-            } else {
-                resolvedCourseEnrolLimit = enteredCourseEnrolLimit;
-            }
-            contentNode.put(Constants.COURSE_ENROL_LIMIT, resolvedCourseEnrolLimit);
-
             boolean isFree = Constants.COURSE_TYPE_FREE.equalsIgnoreCase(
                     contentNode.path(Constants.COURSE_TYPE).asText());
+
+            if (isFree) {
+                // Free courses are always tied directly to the partner's overall limit,
+                // regardless of any value supplied on this request.
+                contentNode.put(Constants.COURSE_ENROL_LIMIT, overAllLimit);
+            } else {
+                Integer enteredCourseEnrolLimit = eachData.getCourseEnrolLimit();
+                int resolvedCourseEnrolLimit;
+                if (enteredCourseEnrolLimit != null && enteredCourseEnrolLimit <= overAllLimit) {
+                    // Supplied and within the partner's overall limit - honour it.
+                    resolvedCourseEnrolLimit = enteredCourseEnrolLimit;
+                } else {
+                    // Not supplied, or supplied but above the partner's overall limit -
+                    // fall back to the overall limit itself.
+                    resolvedCourseEnrolLimit = overAllLimit;
+                }
+                contentNode.put(Constants.COURSE_ENROL_LIMIT, resolvedCourseEnrolLimit);
+            }
+
             if (isFree || !providerHasKarmaPoints) {
                 // Free courses never require karma points; and if the provider has no karma
                 // points configured at all, no course under it can require any either.
