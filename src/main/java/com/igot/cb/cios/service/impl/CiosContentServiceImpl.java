@@ -302,6 +302,22 @@ public class CiosContentServiceImpl implements CiosContentService {
             contentNode.put(Constants.COURSE_ENROL_LIMIT, 0);
             contentNode.put(Constants.REQUIRED_KARMA_POINTS, karmaPointsToApply);
         } else if (Constants.LICENCE_TYPE_COURSE.equalsIgnoreCase(partnerLicenceType)) {
+            Number overAllLimitNum = (Number) partnerData.get(Constants.OVER_ALL_LIMIT);
+            int overAllLimit = overAllLimitNum != null ? overAllLimitNum.intValue() : 0;
+            Integer enteredCourseEnrolLimit = eachData.getCourseEnrolLimit();
+            int resolvedCourseEnrolLimit;
+            if (enteredCourseEnrolLimit == null) {
+                // Not supplied on this request - default to the partner's overall licence limit
+                // rather than 0.
+                resolvedCourseEnrolLimit = overAllLimit;
+            } else if (enteredCourseEnrolLimit > overAllLimit) {
+                // Supplied, but above the partner's overall limit - cap it at that limit.
+                resolvedCourseEnrolLimit = overAllLimit;
+            } else {
+                resolvedCourseEnrolLimit = enteredCourseEnrolLimit;
+            }
+            contentNode.put(Constants.COURSE_ENROL_LIMIT, resolvedCourseEnrolLimit);
+
             boolean isFree = Constants.COURSE_TYPE_FREE.equalsIgnoreCase(
                     contentNode.path(Constants.COURSE_TYPE).asText());
             if (isFree || !providerHasKarmaPoints) {
