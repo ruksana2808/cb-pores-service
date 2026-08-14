@@ -241,6 +241,11 @@ public class CiosContentServiceImpl implements CiosContentService {
             result.put("ApiResponse", "All data curated successfully");
             apiResponse.setResult(result);
             return apiResponse;
+        } catch (CustomException e) {
+            apiResponse.getParams().setErrMsg(e.getMessage());
+            apiResponse.getParams().setStatus(Constants.FAILED);
+            apiResponse.setResponseCode(e.getHttpStatusCode() != null ? e.getHttpStatusCode() : HttpStatus.BAD_REQUEST);
+            return apiResponse;
         } catch (Exception e) {
             apiResponse.getParams().setErrMsg(e.getMessage());
             apiResponse.getParams().setStatus(Constants.FAILED);
@@ -322,16 +327,17 @@ public class CiosContentServiceImpl implements CiosContentService {
                 // regardless of any value supplied on this request.
                 contentNode.put(Constants.COURSE_ENROL_LIMIT, overAllLimit);
             } else {
-                int resolvedCourseEnrolLimit;
-                if (enteredCourseEnrolLimit != null && enteredCourseEnrolLimit <= overAllLimit) {
-                    // Supplied and within the partner's overall limit - honour it.
-                    resolvedCourseEnrolLimit = enteredCourseEnrolLimit;
-                } else {
-                    // Not supplied, or supplied but above the partner's overall limit -
-                    // fall back to the overall limit itself.
-                    resolvedCourseEnrolLimit = overAllLimit;
+                if (enteredCourseEnrolLimit != null && enteredCourseEnrolLimit > overAllLimit) {
+                    // Supplied, but above the partner's overall limit - this is an invalid input,
+                    // not something to silently correct by substituting the partner's value.
+                    throw new CustomException(Constants.ERROR,
+                            "courseEnrolLimit (" + enteredCourseEnrolLimit
+                                    + ") cannot exceed the partner's overall limit (" + overAllLimit + ")",
+                            HttpStatus.BAD_REQUEST);
                 }
-                contentNode.put(Constants.COURSE_ENROL_LIMIT, resolvedCourseEnrolLimit);
+                // Not supplied - default to the overall limit; supplied and within it - honour it.
+                contentNode.put(Constants.COURSE_ENROL_LIMIT,
+                        enteredCourseEnrolLimit != null ? enteredCourseEnrolLimit : overAllLimit);
             }
 
             if (isFree || !providerHasKarmaPoints) {
@@ -339,14 +345,18 @@ public class CiosContentServiceImpl implements CiosContentService {
                 // points configured at all, no course under it can require any either.
                 contentNode.put(Constants.REQUIRED_KARMA_POINTS, 0);
             } else {
-                // Paid course under a Course-licence provider: honour a course-level value only
-                // if it meets or exceeds the provider's own karmaPoints floor. If no course-level
-                // value was supplied, or the supplied value is below the provider's floor, fall
-                // back to the provider's karmaPoints instead of applying the (missing/too-low) value.
+                if (enteredKarmaPoints != null && enteredKarmaPoints < partnerKarmaPoints) {
+                    // Supplied, but below the provider's karmaPoints floor - invalid input, not
+                    // something to silently correct by substituting the provider's value.
+                    throw new CustomException(Constants.ERROR,
+                            "requiredKarmaPoints (" + enteredKarmaPoints
+                                    + ") cannot be below the provider's karmaPoints (" + partnerKarmaPoints + ")",
+                            HttpStatus.BAD_REQUEST);
+                }
+                // Not supplied - default to the provider's karmaPoints; supplied and at or above
+                // the floor - honour it.
                 contentNode.put(Constants.REQUIRED_KARMA_POINTS,
-                        (enteredKarmaPoints != null && enteredKarmaPoints >= partnerKarmaPoints)
-                                ? enteredKarmaPoints
-                                : partnerKarmaPoints);
+                        enteredKarmaPoints != null ? enteredKarmaPoints : partnerKarmaPoints);
             }
         } else if (!providerHasKarmaPoints) {
             contentNode.put(Constants.REQUIRED_KARMA_POINTS, 0);
