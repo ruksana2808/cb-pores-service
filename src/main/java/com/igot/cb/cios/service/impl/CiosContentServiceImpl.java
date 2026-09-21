@@ -710,7 +710,8 @@ public class CiosContentServiceImpl implements CiosContentService {
             String requestedCourseType = contentNode
                     .path(Constants.COURSE_TYPE)
                     .asText("");
-            return !existingCourseType.equalsIgnoreCase(requestedCourseType);
+            return StringUtils.isNotBlank(existingCourseType)
+                    && !existingCourseType.equalsIgnoreCase(requestedCourseType);
 
         } catch (CustomException e) {
             return false;
