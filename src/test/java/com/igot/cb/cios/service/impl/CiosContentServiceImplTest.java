@@ -1802,19 +1802,20 @@ class CiosContentServiceImplTest {
         when(contentPartnerService.getContentDetailsByPartnerCode("PARTNER_1")).thenReturn(partnerResponse);
         when(objectMapper.convertValue(partnerData, JsonNode.class))
                 .thenReturn(realObjectMapper.valueToTree(partnerData));
+        when(cbServerProperties.getExtCourseCompatibilityLevel()).thenReturn(7);
 
         boolean result = (boolean) method.invoke(ciosContentService, contentNode, "PARTNER_1");
 
         assertTrue(result);
         assertEquals(60, contentNode.path(Constants.REQUIRED_KARMA_COINS).asInt());
+        assertEquals(7, contentNode.path(Constants.COMPATIBILITY_LEVEL).asInt());
     }
 
-    // ---- updateContentWithRequiredFields: compatibilityLevel is stamped from server properties ----
+    // ---- updateContentWithRequiredFields: compatibilityLevel is no longer stamped here; it is set only
+    // for paid courses under course licence in applyPublishTimeLicenceRules ----
 
     @Test
-    void test_updateContentWithRequiredFields_setsCompatibilityLevelFromServerProperties() throws Exception {
-        when(cbServerProperties.getExtCourseCompatibilityLevel()).thenReturn(5);
-
+    void test_updateContentWithRequiredFields_doesNotSetCompatibilityLevel() throws Exception {
         ObjectNode contentNode = realObjectMapper.createObjectNode();
         Timestamp timestamp = new Timestamp(System.currentTimeMillis());
         ObjectDto objectDto = new ObjectDto();
@@ -1826,15 +1827,11 @@ class CiosContentServiceImplTest {
 
         method.invoke(ciosContentService, contentNode, timestamp, objectDto);
 
-        JsonNode compatibilityLevel = contentNode.path(Constants.COMPATIBILITY_LEVEL);
-        assertTrue(compatibilityLevel.isNumber());
-        assertEquals(5, compatibilityLevel.asInt());
+        assertFalse(contentNode.has(Constants.COMPATIBILITY_LEVEL));
     }
 
     @Test
-    void test_updateContentWithRequiredFields_overwritesExistingCompatibilityLevel() throws Exception {
-        when(cbServerProperties.getExtCourseCompatibilityLevel()).thenReturn(3);
-
+    void test_updateContentWithRequiredFields_leavesExistingCompatibilityLevelUnchanged() throws Exception {
         ObjectNode contentNode = realObjectMapper.createObjectNode();
         contentNode.put(Constants.COMPATIBILITY_LEVEL, 1);
         Timestamp timestamp = new Timestamp(System.currentTimeMillis());
@@ -1847,7 +1844,7 @@ class CiosContentServiceImplTest {
 
         method.invoke(ciosContentService, contentNode, timestamp, objectDto);
 
-        assertEquals(3, contentNode.path(Constants.COMPATIBILITY_LEVEL).asInt());
+        assertEquals(1, contentNode.path(Constants.COMPATIBILITY_LEVEL).asInt());
     }
 
 }
