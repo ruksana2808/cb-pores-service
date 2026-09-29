@@ -310,6 +310,7 @@ public class CiosContentServiceImpl implements CiosContentService {
                 Double karmaCoinMultiplier = providerJson.path(Constants.KARMA_COIN_MULTIPLIER).asDouble(1);
                 int karmaCoin = (int) Math.round(parseKarmaCoinModifier(karmaCoinMultiplier, contentNode.path(Constants.REQUIRED_KARMA_POINTS).asInt(0)));
                 contentNode.put(Constants.REQUIRED_KARMA_COINS, karmaCoin);
+                contentNode.set(Constants.COMPATIBILITY_LEVEL, IntNode.valueOf(cbServerProperties.getExtCourseCompatibilityLevel()));
                 return validateKarmapointsAndCourseEnrolLimit(contentNode, partnerKarmaPoints, overAllLimit);
             }
         }
@@ -549,7 +550,6 @@ public class CiosContentServiceImpl implements CiosContentService {
         if(eachData.getRequiredKarmaPoints() != null) {
             contentNode.put(Constants.REQUIRED_KARMA_POINTS, eachData.getRequiredKarmaPoints());
         }
-        contentNode.set(Constants.COMPATIBILITY_LEVEL, IntNode.valueOf(cbServerProperties.getExtCourseCompatibilityLevel()));
     }
 
     @Override
