@@ -580,7 +580,8 @@ public class EsUtilServiceImpl implements EsUtilService {
     @Override
     public SearchResult searchDocumentsV2(String esIndexName, SearchCriteria searchCriteria) {
 
-        SearchRequest.Builder searchRequestBuilder = buildSearchRequestV2(searchCriteria);
+        SearchRequest.Builder searchRequestBuilder =
+                buildSearchRequestV2(esIndexName, searchCriteria);
         searchRequestBuilder.index(esIndexName);
 
         try {
@@ -614,7 +615,8 @@ public class EsUtilServiceImpl implements EsUtilService {
         }
     }
 
-    private SearchRequest.Builder buildSearchRequestV2(SearchCriteria searchCriteria) {
+    private SearchRequest.Builder buildSearchRequestV2(
+            String esIndexName, SearchCriteria searchCriteria) {
         BoolQuery.Builder boolQuery = buildFilterQueryV2(searchCriteria.getFilterCriteriaMap());
         if (isNotBlank(searchCriteria.getStartsWith()) &&
                 isNotBlank(searchCriteria.getStartsWithField())) {
@@ -623,10 +625,15 @@ public class EsUtilServiceImpl implements EsUtilService {
                     .value(searchCriteria.getStartsWith())
             )));
         }
-        addQueryStringToFilterV2(searchCriteria.getSearchString(), boolQuery);
+        addQueryStringToFilterV2(
+                searchCriteria.getSearchString(), boolQuery, esIndexName);
 
         SearchRequest.Builder builder = new SearchRequest.Builder();
         builder.query(boolQuery.build()._toQuery());
+        if (Constants.DESIGNATION_INDEX_NAME.equals(esIndexName)
+                && isNotBlank(searchCriteria.getSearchString())) {
+            builder.sort(s -> s.score(score -> score.order(SortOrder.Desc)));
+        }
         addSortV2(searchCriteria, builder);
         addRequestedFieldsToSearchSourceBuilder(searchCriteria, builder);
         addFacetsV2(searchCriteria.getFacets(), builder);
@@ -824,14 +831,20 @@ public class EsUtilServiceImpl implements EsUtilService {
         builder.aggregations(aggs);
     }
 
-    private void addQueryStringToFilterV2(String searchString, BoolQuery.Builder boolQueryBuilder) {
+    private void addQueryStringToFilterV2(
+            String searchString, BoolQuery.Builder boolQueryBuilder, String esIndexName) {
 
         if (!isNotBlank(searchString)) {
             return;
         }
-        String trimmedSearch = searchString.trim();
-        Map<String, Float> fieldsWithBoost =
-                parseBoostConfig(cbServerProperties.getSearchFieldsWithBoost());
+
+        boolean isDesignationSearch = Constants.DESIGNATION_INDEX_NAME.equals(esIndexName);
+        String trimmedSearch = isDesignationSearch
+                ? searchString.trim().toLowerCase(Locale.ROOT) : searchString.trim();
+        String boostConfig = isDesignationSearch
+                ? cbServerProperties.getDesignationSearchFieldsWithBoost()
+                : cbServerProperties.getSearchFieldsWithBoost();
+        Map<String, Float> fieldsWithBoost = parseBoostConfig(boostConfig);
         if (fieldsWithBoost.isEmpty()) {
             log.warn("No search fields configured");
             return;
@@ -844,24 +857,49 @@ public class EsUtilServiceImpl implements EsUtilService {
                         .boost(boost * 4)
                 )))
         );
-        fieldsWithBoost.forEach((field, boost) ->
+        fieldsWithBoost.forEach((field, boost) -> {
+            if (isDesignationSearch) {
+                boolQueryBuilder.should(Query.of(q -> q.prefix(p -> p
+                        .field(field)
+                        .value(trimmedSearch)
+                        .boost(boost * 2)
+                        .rewrite("constant_score")
+                )));
+            } else {
                 boolQueryBuilder.should(Query.of(q -> q.matchPhrase(mp -> mp
                         .field(field)
                         .query(trimmedSearch)
                         .boost(boost * 2)
                         .slop(1)
-                )))
-        );
-        List<String> boostedFields = fieldsWithBoost.entrySet()
-                .stream()
-                .map(entry -> entry.getKey() + Constants.BOOST_SEPARATOR + entry.getValue())
-                .toList();
+                )));
+            }
+        });
+        if (isDesignationSearch) {
+            // Treat wildcard characters in the search text literally.
+            String escapedSearch = trimmedSearch
+                    .replace("\\", "\\\\")
+                    .replace("*", "\\*")
+                    .replace("?", "\\?");
+            String containsPattern = "*" + escapedSearch + "*";
+            fieldsWithBoost.forEach((field, boost) ->
+                    boolQueryBuilder.should(Query.of(q -> q.wildcard(w -> w
+                            .field(field)
+                            .value(containsPattern)
+                            .boost(boost)
+                            .rewrite("constant_score")
+                    ))));
+        } else {
+            List<String> boostedFields = fieldsWithBoost.entrySet()
+                    .stream()
+                    .map(entry -> entry.getKey() + Constants.BOOST_SEPARATOR + entry.getValue())
+                    .toList();
 
-        boolQueryBuilder.should(Query.of(q -> q.multiMatch(m -> m
-                .query(trimmedSearch)
-                .fields(boostedFields)
-                .type(TextQueryType.MostFields)
-        )));
+            boolQueryBuilder.should(Query.of(q -> q.multiMatch(m -> m
+                    .query(trimmedSearch)
+                    .fields(boostedFields)
+                    .type(TextQueryType.MostFields)
+            )));
+        }
         boolQueryBuilder.minimumShouldMatch("1");
     }
 

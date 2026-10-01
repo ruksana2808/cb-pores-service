@@ -195,6 +195,9 @@ public class CbServerProperties {
     @Value("${search.fields.with.boost}")
     private String searchFieldsWithBoost;
 
+    @Value("${search.fields.with.boost.designation:searchTags:5.0}")
+    private String designationSearchFieldsWithBoost;
+
     @Value("${max.demand.create.byuser:100}")
     private int maxDemandCreateByUser;
 
