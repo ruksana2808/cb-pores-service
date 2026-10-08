@@ -850,6 +850,22 @@ public class EsUtilServiceImpl implements EsUtilService {
             return;
         }
 
+        if (isDesignationSearch) {
+            // A record's own canonical name can also appear as an alias/search tag on a
+            // *different* record (e.g. "Supervisor (Driver) (Grade III)" tagged with
+            // "driver (grade iii)" for discoverability). Matching only searchTags can't tell
+            // those apart, so an exact, case-insensitive match against the designation's own
+            // name field is scored far above anything else, guaranteeing the literal match
+            // wins regardless of what other records happen to also match on searchTags.
+            // Single term lookup, no wildcard, negligible cost.
+            boolQueryBuilder.should(Query.of(q -> q.term(t -> t
+                    .field(Constants.DESIGNATION)
+                    .value(trimmedSearch)
+                    .caseInsensitive(true)
+                    .boost(cbServerProperties.getDesignationExactMatchBoost())
+            )));
+        }
+
         fieldsWithBoost.forEach((field, boost) ->
                 boolQueryBuilder.should(Query.of(q -> q.term(t -> t
                         .field(field)
