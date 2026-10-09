@@ -840,7 +840,7 @@ public class EsUtilServiceImpl implements EsUtilService {
 
         boolean isDesignationSearch = Constants.DESIGNATION_INDEX_NAME.equals(esIndexName);
         String trimmedSearch = isDesignationSearch
-                ? searchString.trim().toLowerCase(Locale.ROOT) : searchString.trim();
+                ? stripNoisePunctuation(searchString).toLowerCase(Locale.ROOT) : searchString.trim();
         String boostConfig = isDesignationSearch
                 ? cbServerProperties.getDesignationSearchFieldsWithBoost()
                 : cbServerProperties.getSearchFieldsWithBoost();
@@ -854,16 +854,30 @@ public class EsUtilServiceImpl implements EsUtilService {
             // A record's own canonical name can also appear as an alias/search tag on a
             // *different* record (e.g. "Supervisor (Driver) (Grade III)" tagged with
             // "driver (grade iii)" for discoverability). Matching only searchTags can't tell
-            // those apart, so an exact, case-insensitive match against the designation's own
-            // name field is scored far above anything else, guaranteeing the literal match
-            // wins regardless of what other records happen to also match on searchTags.
-            // Single term lookup, no wildcard, negligible cost.
+            // those apart, so an exact match against the designation's own name field is
+            // scored far above anything else, guaranteeing the literal match wins regardless
+            // of what other records happen to also match on searchTags.
+            // NOTE: this cluster's Elasticsearch rejects term-query `case_insensitive`
+            // ("[term] query does not support [case_insensitive]"), so case-insensitivity is
+            // handled here in application code instead: one clause for the search string as
+            // typed, one lowercased. Plain term lookups, no wildcard, negligible cost.
+            // Punctuation such as parentheses is stripped (stripNoisePunctuation) before
+            // matching, since real designation names are inconsistently punctuated
+            // (e.g. stored as "Driver Special Grade" with no parens at all), so a user typing
+            // "Driver (Special Grade)" must still hit an exact, literal match.
+            String originalCaseSearch = stripNoisePunctuation(searchString);
             boolQueryBuilder.should(Query.of(q -> q.term(t -> t
                     .field(Constants.DESIGNATION)
                     .value(trimmedSearch)
-                    .caseInsensitive(true)
                     .boost(cbServerProperties.getDesignationExactMatchBoost())
             )));
+            if (!originalCaseSearch.equals(trimmedSearch)) {
+                boolQueryBuilder.should(Query.of(q -> q.term(t -> t
+                        .field(Constants.DESIGNATION)
+                        .value(originalCaseSearch)
+                        .boost(cbServerProperties.getDesignationExactMatchBoost())
+                )));
+            }
         }
 
         fieldsWithBoost.forEach((field, boost) ->
@@ -917,6 +931,19 @@ public class EsUtilServiceImpl implements EsUtilService {
             )));
         }
         boolQueryBuilder.minimumShouldMatch("1");
+    }
+
+    /**
+     * Strips punctuation that's inconsistently present across designation names/tags (e.g. some
+     * records are stored as "Driver (Special Grade)", others as "Driver Special Grade" with no
+     * parentheses at all), then collapses any resulting double spaces. Applied to the search
+     * string only - existing indexed data is untouched, no reindex required. Only covers the
+     * case where the user's input has punctuation the stored value lacks; the reverse (stored
+     * value has punctuation the user didn't type) would need the same normalization applied to
+     * the indexed searchTags/designation values at write time.
+     */
+    private String stripNoisePunctuation(String value) {
+        return value.replaceAll("[()]", "").replaceAll("\\s+", " ").trim();
     }
 
     private Map<String, Float> parseBoostConfig(String configValue) {
