@@ -412,63 +412,14 @@ class EsUtilServiceImplTest {
     void designationSearch_shouldAddDesignationNameExactMatchClauseFirstWithDominantBoost() throws IOException {
         // Guards against a different record's alias tag (e.g. "Supervisor (Driver) (Grade III)"
         // tagged with "driver (grade iii)") outscoring the record whose own canonical name is
-        // the literal match (e.g. "Driver (Grade III)"). Uses plain term queries, not
-        // case_insensitive: this cluster's Elasticsearch rejects that parameter on term queries
-        // ("[term] query does not support [case_insensitive]").
+        // the literal match (e.g. "Driver (Grade III)").
         Query searchQuery = captureSearchQuery(Constants.DESIGNATION_INDEX_NAME, "electrician");
         List<Query> shouldQueries = searchQuery.bool().should();
 
         assertEquals(Constants.DESIGNATION, shouldQueries.get(0).term().field());
         assertEquals("electrician", shouldQueries.get(0).term().value().stringValue());
+        assertTrue(shouldQueries.get(0).term().caseInsensitive());
         assertEquals(100.0f, shouldQueries.get(0).term().boost());
-    }
-
-    @Test
-    void designationSearch_shouldSkipDuplicateDesignationClauseWhenAlreadyLowercase() throws IOException {
-        Query searchQuery = captureSearchQuery(Constants.DESIGNATION_INDEX_NAME, "electrician");
-
-        long designationClauses = searchQuery.bool().should().stream()
-                .filter(q -> q.isTerm() && Constants.DESIGNATION.equals(q.term().field()))
-                .count();
-        assertEquals(1, designationClauses);
-    }
-
-    @Test
-    void designationSearch_shouldAddBothCaseVariantsForDesignationNameWhenCasingDiffers() throws IOException {
-        Query searchQuery = captureSearchQuery(Constants.DESIGNATION_INDEX_NAME, "Driver (Grade III)");
-
-        List<Query> designationClauses = searchQuery.bool().should().stream()
-                .filter(q -> q.isTerm() && Constants.DESIGNATION.equals(q.term().field()))
-                .toList();
-
-        // Parentheses are stripped before matching (see stripNoisePunctuation), so "Driver
-        // (Grade III)" normalizes to "driver grade iii" / "Driver Grade III".
-        assertEquals(2, designationClauses.size());
-        assertEquals("driver grade iii", designationClauses.get(0).term().value().stringValue());
-        assertEquals("Driver Grade III", designationClauses.get(1).term().value().stringValue());
-    }
-
-    @Test
-    void designationSearch_shouldStripParenthesesSoPunctuationMismatchStillMatches() throws IOException {
-        // Reproduces the reported scenario: a record is stored with no parentheses at all
-        // ("Driver Special Grade" / searchTags "driver special grade"), but a user searches
-        // with them ("Driver (Special Grade)"). Without stripping, the literal term/prefix/
-        // wildcard comparisons would never match since the parenthesized string isn't equal,
-        // a prefix of, or a substring of the unparenthesized stored value.
-        Query searchQuery = captureSearchQuery(Constants.DESIGNATION_INDEX_NAME, "Driver (Special Grade)");
-        List<Query> shouldQueries = searchQuery.bool().should();
-
-        List<Query> designationClauses = shouldQueries.stream()
-                .filter(q -> q.isTerm() && Constants.DESIGNATION.equals(q.term().field()))
-                .toList();
-        assertEquals(2, designationClauses.size());
-        assertEquals("driver special grade", designationClauses.get(0).term().value().stringValue());
-        assertEquals("Driver Special Grade", designationClauses.get(1).term().value().stringValue());
-
-        Query searchTagsTerm = shouldQueries.stream()
-                .filter(q -> q.isTerm() && "searchTags".equals(q.term().field()))
-                .findFirst().orElseThrow();
-        assertEquals("driver special grade", searchTagsTerm.term().value().stringValue());
     }
 
     @Test
@@ -505,29 +456,22 @@ class EsUtilServiceImplTest {
     }
 
     @Test
-    void designationSearch_shouldTrimLowercaseAndStripParensFromSearchString() throws IOException {
-        // Mixed-case input ("Electrician (Grade I)") differs from its lowercased form, so the
-        // designation-name clause appears twice (lowercase + as-typed) before the searchTags
-        // clauses: indices 0,1 = designation, 2 = searchTags term, 3 = prefix, 4 = wildcard.
-        // Parentheses are stripped throughout (stripNoisePunctuation).
+    void designationSearch_shouldTrimAndLowercaseSearchString() throws IOException {
         Query searchQuery = captureSearchQuery(
                 Constants.DESIGNATION_INDEX_NAME, "  Electrician (Grade I)  ");
         List<Query> shouldQueries = searchQuery.bool().should();
 
-        assertEquals("electrician grade i", shouldQueries.get(0).term().value().stringValue());
-        assertEquals("Electrician Grade I", shouldQueries.get(1).term().value().stringValue());
-        assertEquals("electrician grade i", shouldQueries.get(2).term().value().stringValue());
-        assertEquals("electrician grade i", shouldQueries.get(3).prefix().value());
-        assertEquals("*electrician grade i*", shouldQueries.get(4).wildcard().value());
+        assertEquals("electrician (grade i)", shouldQueries.get(0).term().value().stringValue());
+        assertEquals("electrician (grade i)", shouldQueries.get(1).term().value().stringValue());
+        assertEquals("electrician (grade i)", shouldQueries.get(2).prefix().value());
+        assertEquals("*electrician (grade i)*", shouldQueries.get(3).wildcard().value());
     }
 
     @Test
     void designationSearch_shouldEscapeWildcardCharactersInContainsClause() throws IOException {
-        // "A*B?C\D" differs from its lowercased form too, so the same two-clause designation
-        // shift applies: the wildcard clause lands at index 4, not 2.
         Query searchQuery = captureSearchQuery(Constants.DESIGNATION_INDEX_NAME, "A*B?C\\D");
 
-        assertEquals("*a\\*b\\?c\\\\d*", searchQuery.bool().should().get(4).wildcard().value());
+        assertEquals("*a\\*b\\?c\\\\d*", searchQuery.bool().should().get(3).wildcard().value());
     }
 
     @Test
@@ -542,7 +486,7 @@ class EsUtilServiceImplTest {
         float highestPossibleAliasScore =
                 20.0f + 10.0f + 5.0f; // searchTags term + prefix + wildcard, all firing at once
         assertEquals(Constants.DESIGNATION, exactNameClause.term().field());
-        assertEquals("driver grade iii", exactNameClause.term().value().stringValue());
+        assertEquals("driver (grade iii)", exactNameClause.term().value().stringValue());
         assertTrue(exactNameBoost > highestPossibleAliasScore,
                 "Exact designation-name boost must dominate even if a competing record "
                         + "matches every searchTags clause at once");
