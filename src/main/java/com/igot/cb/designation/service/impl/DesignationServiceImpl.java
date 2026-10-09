@@ -904,6 +904,7 @@ public class DesignationServiceImpl implements DesignationService {
       CustomResponse response, String errorMessage, HttpStatus httpStatus, String status) {
     response.setParams(new RespParam());
     response.getParams().setStatus(status);
+    response.getParams().setErrmsg(errorMessage);
     response.setResponseCode(httpStatus);
   }
   @Override
