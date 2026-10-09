@@ -608,7 +608,7 @@ public class DesignationServiceImpl implements DesignationService {
     } catch (Exception e) {
       createErrorResponse(response, e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR,
           Constants.FAILED_CONST);
-      log.info("DesignationServiceImpl::searchDesignation::error occurred while searching the designation",response);
+      log.error("DesignationServiceImpl::searchDesignation::error occurred while searching the designation", e);
       return response;
     }
   }
