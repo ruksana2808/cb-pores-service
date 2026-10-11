@@ -410,26 +410,14 @@ class EsUtilServiceImplTest {
 
     @Test
     void designationSearch_shouldAddDesignationNameExactMatchClauseFirstWithDominantBoost() throws IOException {
-        // Guards against a different record's alias tag (e.g. "Supervisor (Driver) (Grade III)"
-        // tagged with "driver (grade iii)") outscoring the record whose own canonical name is
-        // the literal match (e.g. "Driver (Grade III)").
         Query searchQuery = captureSearchQuery(Constants.DESIGNATION_INDEX_NAME, "electrician");
         List<Query> shouldQueries = searchQuery.bool().should();
 
+        assertEquals(3, shouldQueries.size());
+        assertTrue(shouldQueries.get(0).isTerm());
         assertEquals(Constants.DESIGNATION, shouldQueries.get(0).term().field());
         assertEquals("electrician", shouldQueries.get(0).term().value().stringValue());
-        assertTrue(shouldQueries.get(0).term().caseInsensitive());
         assertEquals(100.0f, shouldQueries.get(0).term().boost());
-    }
-
-    @Test
-    void designationSearch_shouldAddExactMatchClauseWithHighestBoost() throws IOException {
-        Query searchQuery = captureSearchQuery(Constants.DESIGNATION_INDEX_NAME, "electrician");
-        List<Query> shouldQueries = searchQuery.bool().should();
-
-        assertEquals("searchTags", shouldQueries.get(1).term().field());
-        assertEquals("electrician", shouldQueries.get(1).term().value().stringValue());
-        assertEquals(20.0f, shouldQueries.get(1).term().boost());
     }
 
     @Test
@@ -437,10 +425,11 @@ class EsUtilServiceImplTest {
         Query searchQuery = captureSearchQuery(Constants.DESIGNATION_INDEX_NAME, "electrician");
         List<Query> shouldQueries = searchQuery.bool().should();
 
-        assertEquals("searchTags", shouldQueries.get(2).prefix().field());
-        assertEquals("electrician", shouldQueries.get(2).prefix().value());
-        assertEquals(10.0f, shouldQueries.get(2).prefix().boost());
-        assertEquals("constant_score", shouldQueries.get(2).prefix().rewrite());
+        assertTrue(shouldQueries.get(1).isPrefix());
+        assertEquals(Constants.DESIGNATION, shouldQueries.get(1).prefix().field());
+        assertEquals("electrician", shouldQueries.get(1).prefix().value());
+        assertEquals(10.0f, shouldQueries.get(1).prefix().boost());
+        assertEquals("constant_score", shouldQueries.get(1).prefix().rewrite());
     }
 
     @Test
@@ -448,10 +437,11 @@ class EsUtilServiceImplTest {
         Query searchQuery = captureSearchQuery(Constants.DESIGNATION_INDEX_NAME, "electrician");
         List<Query> shouldQueries = searchQuery.bool().should();
 
-        assertEquals("searchTags", shouldQueries.get(3).wildcard().field());
-        assertEquals("*electrician*", shouldQueries.get(3).wildcard().value());
-        assertEquals(5.0f, shouldQueries.get(3).wildcard().boost());
-        assertEquals("constant_score", shouldQueries.get(3).wildcard().rewrite());
+        assertTrue(shouldQueries.get(2).isWildcard());
+        assertEquals(Constants.DESIGNATION, shouldQueries.get(2).wildcard().field());
+        assertEquals("*electrician*", shouldQueries.get(2).wildcard().value());
+        assertEquals(5.0f, shouldQueries.get(2).wildcard().boost());
+        assertEquals("constant_score", shouldQueries.get(2).wildcard().rewrite());
         assertEquals("1", searchQuery.bool().minimumShouldMatch());
     }
 
@@ -461,35 +451,30 @@ class EsUtilServiceImplTest {
                 Constants.DESIGNATION_INDEX_NAME, "  Electrician (Grade I)  ");
         List<Query> shouldQueries = searchQuery.bool().should();
 
+        assertEquals(3, shouldQueries.size());
         assertEquals("electrician (grade i)", shouldQueries.get(0).term().value().stringValue());
-        assertEquals("electrician (grade i)", shouldQueries.get(1).term().value().stringValue());
-        assertEquals("electrician (grade i)", shouldQueries.get(2).prefix().value());
-        assertEquals("*electrician (grade i)*", shouldQueries.get(3).wildcard().value());
+        assertEquals("electrician (grade i)", shouldQueries.get(1).prefix().value());
+        assertEquals("*electrician (grade i)*", shouldQueries.get(2).wildcard().value());
     }
 
     @Test
     void designationSearch_shouldEscapeWildcardCharactersInContainsClause() throws IOException {
         Query searchQuery = captureSearchQuery(Constants.DESIGNATION_INDEX_NAME, "A*B?C\\D");
 
-        assertEquals("*a\\*b\\?c\\\\d*", searchQuery.bool().should().get(3).wildcard().value());
+        assertEquals("*a\\*b\\?c\\\\d*", searchQuery.bool().should().get(2).wildcard().value());
     }
 
     @Test
     void designationSearch_exactNameMatchShouldOutrankAliasMatchOnAnotherRecord() throws IOException {
-        // Reproduces the reported bug: searching "Driver (Grade III)" must not let
-        // "Supervisor (Driver) (Grade III)" (which merely has a matching alias tag) outscore
-        // the record whose own designation name is the literal match.
         Query searchQuery = captureSearchQuery(Constants.DESIGNATION_INDEX_NAME, "Driver (Grade III)");
-        Query exactNameClause = searchQuery.bool().should().get(0);
+        List<Query> shouldQueries = searchQuery.bool().should();
 
-        float exactNameBoost = exactNameClause.term().boost();
-        float highestPossibleAliasScore =
-                20.0f + 10.0f + 5.0f; // searchTags term + prefix + wildcard, all firing at once
+        Query exactNameClause = shouldQueries.get(0);
+
+        assertTrue(exactNameClause.isTerm());
         assertEquals(Constants.DESIGNATION, exactNameClause.term().field());
         assertEquals("driver (grade iii)", exactNameClause.term().value().stringValue());
-        assertTrue(exactNameBoost > highestPossibleAliasScore,
-                "Exact designation-name boost must dominate even if a competing record "
-                        + "matches every searchTags clause at once");
+        assertTrue(exactNameClause.term().boost() > 15.0f);
     }
 
     @Test
@@ -507,29 +492,26 @@ class EsUtilServiceImplTest {
     }
 
     @Test
-    void designationSearch_shouldUseConfiguredFieldsAndBoosts() throws IOException {
+    void designationSearch_shouldUseOnlyDesignationField() throws IOException {
         when(cbServerProperties.getDesignationSearchFieldsWithBoost())
                 .thenReturn("searchTags:3.0,alternateNames:1.5");
         when(cbServerProperties.getSearchFieldsWithBoost()).thenReturn("title:99.0");
 
         Query searchQuery = captureSearchQuery(Constants.DESIGNATION_INDEX_NAME, "electrician");
+        List<Query> shouldQueries = searchQuery.bool().should();
+        assertEquals(3, shouldQueries.size());
 
-        // 1 designation-name exact-match clause + 2 configured fields x 3 clause types (term/prefix/wildcard)
-        assertEquals(7, searchQuery.bool().should().size());
-        Map<String, Float> configuredBoosts = Map.of("searchTags", 3.0f, "alternateNames", 1.5f);
-        for (Query clause : searchQuery.bool().should()) {
-            if (clause.isTerm() && Constants.DESIGNATION.equals(clause.term().field())) {
-                continue; // the dedicated exact-name clause; covered by its own test
-            }
-            if (clause.isTerm()) {
-                assertEquals(configuredBoosts.get(clause.term().field()) * 4, clause.term().boost());
-            } else if (clause.isPrefix()) {
-                assertEquals(configuredBoosts.get(clause.prefix().field()) * 2, clause.prefix().boost());
-            } else {
-                assertTrue(clause.isWildcard());
-                assertEquals(configuredBoosts.get(clause.wildcard().field()), clause.wildcard().boost());
-            }
-        }
+        assertTrue(shouldQueries.get(0).isTerm());
+        assertTrue(shouldQueries.get(1).isPrefix());
+        assertTrue(shouldQueries.get(2).isWildcard());
+
+        assertEquals(Constants.DESIGNATION, shouldQueries.get(0).term().field());
+        assertEquals(Constants.DESIGNATION, shouldQueries.get(1).prefix().field());
+        assertEquals(Constants.DESIGNATION, shouldQueries.get(2).wildcard().field());
+
+        assertEquals(100.0f, shouldQueries.get(0).term().boost());
+        assertEquals(10.0f, shouldQueries.get(1).prefix().boost());
+        assertEquals(5.0f, shouldQueries.get(2).wildcard().boost());
     }
 
     @Test
@@ -603,12 +585,16 @@ class EsUtilServiceImplTest {
     }
 
     @Test
-    void designationSearch_shouldKeepExistingGuardForEmptyBoostConfig() throws IOException {
+    void designationSearch_shouldWorkWithEmptyBoostConfig() throws IOException {
         when(cbServerProperties.getDesignationSearchFieldsWithBoost()).thenReturn("");
 
         Query searchQuery = captureSearchQuery(Constants.DESIGNATION_INDEX_NAME, "electrician");
+        List<Query> shouldQueries = searchQuery.bool().should();
 
-        assertTrue(searchQuery.bool().should().isEmpty());
+        assertEquals(3, shouldQueries.size());
+        assertEquals(Constants.DESIGNATION, shouldQueries.get(0).term().field());
+        assertEquals(Constants.DESIGNATION, shouldQueries.get(1).prefix().field());
+        assertEquals(Constants.DESIGNATION, shouldQueries.get(2).wildcard().field());
     }
 
     private Query captureSearchQuery(String indexName, String searchString) throws IOException {

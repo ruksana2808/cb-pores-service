@@ -839,31 +839,45 @@ public class EsUtilServiceImpl implements EsUtilService {
         }
 
         boolean isDesignationSearch = Constants.DESIGNATION_INDEX_NAME.equals(esIndexName);
-        String trimmedSearch = isDesignationSearch
-                ? searchString.trim().toLowerCase(Locale.ROOT) : searchString.trim();
-        String boostConfig = isDesignationSearch
-                ? cbServerProperties.getDesignationSearchFieldsWithBoost()
-                : cbServerProperties.getSearchFieldsWithBoost();
+        String trimmedSearch = searchString.trim();
+        if (isDesignationSearch) {
+            String normalizedSearch = trimmedSearch.toLowerCase(Locale.ROOT);
+
+            // 1. Exact designation match — highest priority
+            boolQueryBuilder.should(Query.of(q -> q.term(t -> t
+                    .field(Constants.DESIGNATION)
+                    .value(normalizedSearch)
+                    .boost(cbServerProperties.getDesignationExactMatchBoost())
+            )));
+
+            // 2. Prefix match on designation
+            boolQueryBuilder.should(Query.of(q -> q.prefix(p -> p
+                    .field(Constants.DESIGNATION)
+                    .value(normalizedSearch)
+                    .boost(10.0f)
+                    .rewrite("constant_score")
+            )));
+
+            // 3. Partial/contains match on designation
+            String escapedSearch = normalizedSearch
+                    .replace("\\", "\\\\")
+                    .replace("*", "\\*")
+                    .replace("?", "\\?");
+            boolQueryBuilder.should(Query.of(q -> q.wildcard(w -> w
+                    .field(Constants.DESIGNATION)
+                    .value("*" + escapedSearch + "*")
+                    .boost(5.0f)
+                    .rewrite("constant_score")
+            )));
+            boolQueryBuilder.minimumShouldMatch("1");
+            return;
+        }
+
+        String boostConfig = cbServerProperties.getSearchFieldsWithBoost();
         Map<String, Float> fieldsWithBoost = parseBoostConfig(boostConfig);
         if (fieldsWithBoost.isEmpty()) {
             log.warn("No search fields configured");
             return;
-        }
-
-        if (isDesignationSearch) {
-            // A record's own canonical name can also appear as an alias/search tag on a
-            // *different* record (e.g. "Supervisor (Driver) (Grade III)" tagged with
-            // "driver (grade iii)" for discoverability). Matching only searchTags can't tell
-            // those apart, so an exact, case-insensitive match against the designation's own
-            // name field is scored far above anything else, guaranteeing the literal match
-            // wins regardless of what other records happen to also match on searchTags.
-            // Single term lookup, no wildcard, negligible cost.
-            boolQueryBuilder.should(Query.of(q -> q.term(t -> t
-                    .field(Constants.DESIGNATION)
-                    .value(trimmedSearch)
-                    .caseInsensitive(true)
-                    .boost(cbServerProperties.getDesignationExactMatchBoost())
-            )));
         }
 
         fieldsWithBoost.forEach((field, boost) ->
@@ -873,49 +887,24 @@ public class EsUtilServiceImpl implements EsUtilService {
                         .boost(boost * 4)
                 )))
         );
-        fieldsWithBoost.forEach((field, boost) -> {
-            if (isDesignationSearch) {
-                boolQueryBuilder.should(Query.of(q -> q.prefix(p -> p
-                        .field(field)
-                        .value(trimmedSearch)
-                        .boost(boost * 2)
-                        .rewrite("constant_score")
-                )));
-            } else {
+        fieldsWithBoost.forEach((field, boost) ->
                 boolQueryBuilder.should(Query.of(q -> q.matchPhrase(mp -> mp
                         .field(field)
                         .query(trimmedSearch)
                         .boost(boost * 2)
                         .slop(1)
-                )));
-            }
-        });
-        if (isDesignationSearch) {
-            // Treat wildcard characters in the search text literally.
-            String escapedSearch = trimmedSearch
-                    .replace("\\", "\\\\")
-                    .replace("*", "\\*")
-                    .replace("?", "\\?");
-            String containsPattern = "*" + escapedSearch + "*";
-            fieldsWithBoost.forEach((field, boost) ->
-                    boolQueryBuilder.should(Query.of(q -> q.wildcard(w -> w
-                            .field(field)
-                            .value(containsPattern)
-                            .boost(boost)
-                            .rewrite("constant_score")
-                    ))));
-        } else {
-            List<String> boostedFields = fieldsWithBoost.entrySet()
-                    .stream()
-                    .map(entry -> entry.getKey() + Constants.BOOST_SEPARATOR + entry.getValue())
-                    .toList();
+                )))
+        );
+        List<String> boostedFields = fieldsWithBoost.entrySet()
+                .stream()
+                .map(entry -> entry.getKey() + Constants.BOOST_SEPARATOR + entry.getValue())
+                .toList();
 
-            boolQueryBuilder.should(Query.of(q -> q.multiMatch(m -> m
-                    .query(trimmedSearch)
-                    .fields(boostedFields)
-                    .type(TextQueryType.MostFields)
-            )));
-        }
+        boolQueryBuilder.should(Query.of(q -> q.multiMatch(m -> m
+                .query(trimmedSearch)
+                .fields(boostedFields)
+                .type(TextQueryType.MostFields)
+        )));
         boolQueryBuilder.minimumShouldMatch("1");
     }
 
