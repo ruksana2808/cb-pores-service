@@ -869,6 +869,14 @@ public class EsUtilServiceImpl implements EsUtilService {
                     .boost(5.0f)
                     .rewrite("constant_score")
             )));
+
+            // 4. Match searchTags
+            boolQueryBuilder.should(Query.of(q -> q.multiMatch(m -> m
+                    .query(normalizedSearch)
+                    .fields("searchTags")
+                    .type(TextQueryType.MostFields)
+                    .boost(7.0f)
+            )));
             boolQueryBuilder.minimumShouldMatch("1");
             return;
         }

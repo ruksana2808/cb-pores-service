@@ -413,7 +413,7 @@ class EsUtilServiceImplTest {
         Query searchQuery = captureSearchQuery(Constants.DESIGNATION_INDEX_NAME, "electrician");
         List<Query> shouldQueries = searchQuery.bool().should();
 
-        assertEquals(3, shouldQueries.size());
+        assertEquals(4, shouldQueries.size());
         assertTrue(shouldQueries.get(0).isTerm());
         assertEquals(Constants.DESIGNATION, shouldQueries.get(0).term().field());
         assertEquals("electrician", shouldQueries.get(0).term().value().stringValue());
@@ -451,7 +451,7 @@ class EsUtilServiceImplTest {
                 Constants.DESIGNATION_INDEX_NAME, "  Electrician (Grade I)  ");
         List<Query> shouldQueries = searchQuery.bool().should();
 
-        assertEquals(3, shouldQueries.size());
+        assertEquals(4, shouldQueries.size());
         assertEquals("electrician (grade i)", shouldQueries.get(0).term().value().stringValue());
         assertEquals("electrician (grade i)", shouldQueries.get(1).prefix().value());
         assertEquals("*electrician (grade i)*", shouldQueries.get(2).wildcard().value());
@@ -499,15 +499,17 @@ class EsUtilServiceImplTest {
 
         Query searchQuery = captureSearchQuery(Constants.DESIGNATION_INDEX_NAME, "electrician");
         List<Query> shouldQueries = searchQuery.bool().should();
-        assertEquals(3, shouldQueries.size());
+        assertEquals(4, shouldQueries.size());
 
         assertTrue(shouldQueries.get(0).isTerm());
         assertTrue(shouldQueries.get(1).isPrefix());
         assertTrue(shouldQueries.get(2).isWildcard());
+        assertTrue(shouldQueries.get(3).isMultiMatch());
 
         assertEquals(Constants.DESIGNATION, shouldQueries.get(0).term().field());
         assertEquals(Constants.DESIGNATION, shouldQueries.get(1).prefix().field());
         assertEquals(Constants.DESIGNATION, shouldQueries.get(2).wildcard().field());
+        assertTrue(shouldQueries.get(3).multiMatch().fields().contains("searchTags"));
 
         assertEquals(100.0f, shouldQueries.get(0).term().boost());
         assertEquals(10.0f, shouldQueries.get(1).prefix().boost());
@@ -591,7 +593,7 @@ class EsUtilServiceImplTest {
         Query searchQuery = captureSearchQuery(Constants.DESIGNATION_INDEX_NAME, "electrician");
         List<Query> shouldQueries = searchQuery.bool().should();
 
-        assertEquals(3, shouldQueries.size());
+        assertEquals(4, shouldQueries.size());
         assertEquals(Constants.DESIGNATION, shouldQueries.get(0).term().field());
         assertEquals(Constants.DESIGNATION, shouldQueries.get(1).prefix().field());
         assertEquals(Constants.DESIGNATION, shouldQueries.get(2).wildcard().field());
