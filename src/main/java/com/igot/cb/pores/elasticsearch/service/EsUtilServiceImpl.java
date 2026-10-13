@@ -839,45 +839,53 @@ public class EsUtilServiceImpl implements EsUtilService {
         }
 
         boolean isDesignationSearch = Constants.DESIGNATION_INDEX_NAME.equals(esIndexName);
-        String trimmedSearch = isDesignationSearch
-                ? stripNoisePunctuation(searchString).toLowerCase(Locale.ROOT) : searchString.trim();
-        String boostConfig = isDesignationSearch
-                ? cbServerProperties.getDesignationSearchFieldsWithBoost()
-                : cbServerProperties.getSearchFieldsWithBoost();
+        String trimmedSearch = searchString.trim();
+        if (isDesignationSearch) {
+            String normalizedSearch = trimmedSearch.toLowerCase(Locale.ROOT);
+
+            // 1. Exact designation match — highest priority
+            boolQueryBuilder.should(Query.of(q -> q.term(t -> t
+                    .field(Constants.DESIGNATION)
+                    .value(normalizedSearch)
+                    .boost(cbServerProperties.getDesignationExactMatchBoost())
+            )));
+
+            // 2. Prefix match on designation
+            boolQueryBuilder.should(Query.of(q -> q.prefix(p -> p
+                    .field(Constants.DESIGNATION)
+                    .value(normalizedSearch)
+                    .boost(10.0f)
+                    .rewrite("constant_score")
+            )));
+
+            // 3. Partial/contains match on designation
+            String escapedSearch = normalizedSearch
+                    .replace("\\", "\\\\")
+                    .replace("*", "\\*")
+                    .replace("?", "\\?");
+            boolQueryBuilder.should(Query.of(q -> q.wildcard(w -> w
+                    .field(Constants.DESIGNATION)
+                    .value("*" + escapedSearch + "*")
+                    .boost(5.0f)
+                    .rewrite("constant_score")
+            )));
+
+            // 4. Match searchTags
+            boolQueryBuilder.should(Query.of(q -> q.multiMatch(m -> m
+                    .query(normalizedSearch)
+                    .fields("searchTags")
+                    .type(TextQueryType.MostFields)
+                    .boost(7.0f)
+            )));
+            boolQueryBuilder.minimumShouldMatch("1");
+            return;
+        }
+
+        String boostConfig = cbServerProperties.getSearchFieldsWithBoost();
         Map<String, Float> fieldsWithBoost = parseBoostConfig(boostConfig);
         if (fieldsWithBoost.isEmpty()) {
             log.warn("No search fields configured");
             return;
-        }
-
-        if (isDesignationSearch) {
-            // A record's own canonical name can also appear as an alias/search tag on a
-            // *different* record (e.g. "Supervisor (Driver) (Grade III)" tagged with
-            // "driver (grade iii)" for discoverability). Matching only searchTags can't tell
-            // those apart, so an exact match against the designation's own name field is
-            // scored far above anything else, guaranteeing the literal match wins regardless
-            // of what other records happen to also match on searchTags.
-            // NOTE: this cluster's Elasticsearch rejects term-query `case_insensitive`
-            // ("[term] query does not support [case_insensitive]"), so case-insensitivity is
-            // handled here in application code instead: one clause for the search string as
-            // typed, one lowercased. Plain term lookups, no wildcard, negligible cost.
-            // Punctuation such as parentheses is stripped (stripNoisePunctuation) before
-            // matching, since real designation names are inconsistently punctuated
-            // (e.g. stored as "Driver Special Grade" with no parens at all), so a user typing
-            // "Driver (Special Grade)" must still hit an exact, literal match.
-            String originalCaseSearch = stripNoisePunctuation(searchString);
-            boolQueryBuilder.should(Query.of(q -> q.term(t -> t
-                    .field(Constants.DESIGNATION)
-                    .value(trimmedSearch)
-                    .boost(cbServerProperties.getDesignationExactMatchBoost())
-            )));
-            if (!originalCaseSearch.equals(trimmedSearch)) {
-                boolQueryBuilder.should(Query.of(q -> q.term(t -> t
-                        .field(Constants.DESIGNATION)
-                        .value(originalCaseSearch)
-                        .boost(cbServerProperties.getDesignationExactMatchBoost())
-                )));
-            }
         }
 
         fieldsWithBoost.forEach((field, boost) ->
@@ -887,63 +895,25 @@ public class EsUtilServiceImpl implements EsUtilService {
                         .boost(boost * 4)
                 )))
         );
-        fieldsWithBoost.forEach((field, boost) -> {
-            if (isDesignationSearch) {
-                boolQueryBuilder.should(Query.of(q -> q.prefix(p -> p
-                        .field(field)
-                        .value(trimmedSearch)
-                        .boost(boost * 2)
-                        .rewrite("constant_score")
-                )));
-            } else {
+        fieldsWithBoost.forEach((field, boost) ->
                 boolQueryBuilder.should(Query.of(q -> q.matchPhrase(mp -> mp
                         .field(field)
                         .query(trimmedSearch)
                         .boost(boost * 2)
                         .slop(1)
-                )));
-            }
-        });
-        if (isDesignationSearch) {
-            // Treat wildcard characters in the search text literally.
-            String escapedSearch = trimmedSearch
-                    .replace("\\", "\\\\")
-                    .replace("*", "\\*")
-                    .replace("?", "\\?");
-            String containsPattern = "*" + escapedSearch + "*";
-            fieldsWithBoost.forEach((field, boost) ->
-                    boolQueryBuilder.should(Query.of(q -> q.wildcard(w -> w
-                            .field(field)
-                            .value(containsPattern)
-                            .boost(boost)
-                            .rewrite("constant_score")
-                    ))));
-        } else {
-            List<String> boostedFields = fieldsWithBoost.entrySet()
-                    .stream()
-                    .map(entry -> entry.getKey() + Constants.BOOST_SEPARATOR + entry.getValue())
-                    .toList();
+                )))
+        );
+        List<String> boostedFields = fieldsWithBoost.entrySet()
+                .stream()
+                .map(entry -> entry.getKey() + Constants.BOOST_SEPARATOR + entry.getValue())
+                .toList();
 
-            boolQueryBuilder.should(Query.of(q -> q.multiMatch(m -> m
-                    .query(trimmedSearch)
-                    .fields(boostedFields)
-                    .type(TextQueryType.MostFields)
-            )));
-        }
+        boolQueryBuilder.should(Query.of(q -> q.multiMatch(m -> m
+                .query(trimmedSearch)
+                .fields(boostedFields)
+                .type(TextQueryType.MostFields)
+        )));
         boolQueryBuilder.minimumShouldMatch("1");
-    }
-
-    /**
-     * Strips punctuation that's inconsistently present across designation names/tags (e.g. some
-     * records are stored as "Driver (Special Grade)", others as "Driver Special Grade" with no
-     * parentheses at all), then collapses any resulting double spaces. Applied to the search
-     * string only - existing indexed data is untouched, no reindex required. Only covers the
-     * case where the user's input has punctuation the stored value lacks; the reverse (stored
-     * value has punctuation the user didn't type) would need the same normalization applied to
-     * the indexed searchTags/designation values at write time.
-     */
-    private String stripNoisePunctuation(String value) {
-        return value.replaceAll("[()]", "").replaceAll("\\s+", " ").trim();
     }
 
     private Map<String, Float> parseBoostConfig(String configValue) {
